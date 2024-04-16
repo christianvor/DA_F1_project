@@ -1,3 +1,7 @@
+## Important news
+We will do the data (pre-)processing in a different file than the actual project, because otherwise our PCs will kill themselves and when knitting it will explode.
+Also the last few years (from 20 or so) will be used for validation of the models so no cutting them away! This is around 15% testing data.
+
 ## Data Processing steps
 
 - combining the datasets in a meaningful way
