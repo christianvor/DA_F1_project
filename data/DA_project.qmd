@@ -1,0 +1,171 @@
+---
+title: "DA Project"
+author: "Group 2"
+format: html
+editor: visual
+---
+
+```{r}
+library(readr)
+library(dplyr)
+```
+
+## Wrangling the Data
+
+```{r}
+
+
+races_2000 <- read_csv("f1db-csv-2024.3.0/f1db-races.csv")
+races_2000 <- races_2000[which(races_2000$year >= 2000), ]
+
+#head(races)
+#str(races)
+
+practice_1_2000<- read_csv("f1db-csv-2024.3.0/f1db-races-free-practice-1-results.csv")
+practice_1_2000 <- practice_1_2000[which(practice_1_2000$year >= 2000), ]
+
+practice_1_2000$positionDisplayOrder <- NULL
+practice_1_2000$positionText <- NULL
+practice_1_2000$tyreManufacturerId <- NULL
+practice_1_2000$time <- NULL
+practice_1_2000$gap <- NULL
+practice_1_2000$interval <- NULL
+practice_1_2000$driverNumber <- NULL
+
+#View(practice_1_2000)
+#str(practice_1_2000)
+
+# See in which columns NAs are
+apply(practice_1_2000, 2, \(x){
+  print(sum(is.na(x)))
+})
+
+# Set time diff for first place to 0 
+practice_1_2000$gapMillis[is.na(practice_1_2000$gapMillis)] <- 0
+practice_1_2000$intervalMillis[is.na(practice_1_2000$intervalMillis)] <- 0
+
+new_DF <- practice_1_2000[is.na(practice_1_2000$timeMillis),]
+
+
+practice_2_2000<- read_csv("f1db-csv-2024.3.0/f1db-races-free-practice-2-results.csv")
+practice_2_2000 <- practice_2_2000[which(practice_2_2000$year >= 2000), ]
+
+practice_2_2000$positionDisplayOrder <- NULL
+practice_2_2000$positionText <- NULL
+practice_2_2000$tyreManufacturerId <- NULL
+practice_2_2000$time <- NULL
+practice_2_2000$gap <- NULL
+practice_2_2000$interval <- NULL
+practice_2_2000$driverNumber <- NULL
+
+#View(practice_2_2000)
+str(practice_2_2000)
+
+# See in which columns NAs are
+apply(practice_2_2000, 2, \(x){
+  print(sum(is.na(x)))
+})
+
+# Set time diff for first place to 0 
+practice_2_2000$gapMillis[is.na(practice_2_2000$gapMillis)] <- 0
+practice_2_2000$intervalMillis[is.na(practice_2_2000$intervalMillis)] <- 0
+
+new_DF <- practice_2_2000[is.na(practice_2_2000$timeMillis),]
+
+
+
+
+practice_full <- practice_1_2000 %>% inner_join(practice_2_2000, by = "raceId")
+str(practice_full)
+
+
+
+
+# No practice 3 becaue it was only implemented in 2003
+#practice_3<- read_csv("f1db-csv-2024.3.0/f1db-races-free-practice-3-results.csv")
+#practice_3_2000 <- practice_3[which(practice_3$year >= 2000), ]
+
+qualifying_res <- read_csv("f1db-csv-2024.3.0/f1db-races-qualifying-results.csv")
+qualifying_res <- qualifying_res[which(qualifying_res$year >= 2000), ]
+#View(qualifying_res)
+tail(qualifying_res)
+
+
+race_results <- read_csv("f1db-csv-2024.3.0/f1db-races-race-results.csv")
+race_results <- race_results[which(race_results$year >= 2000), ]
+head(race_results)
+tail(race_results)
+
+race_results$positionDisplayOrder <- NULL
+race_results$positionText <- NULL
+race_results$driverNumber <- NULL
+race_results$tyreManufacturerId <- NULL
+race_results$time<- NULL
+race_results$sharedCar <- NULL
+race_results$timePenalty <- NULL
+race_results$timePenaltyMillis <- NULL
+race_results$gap <- NULL
+race_results$interval <- NULL
+race_results$gridPositionText <- NULL
+race_results$driverOfTheDay <- NULL
+colnames(race_results)[colnames(race_results) == "gridPositionNumber"] <- "StartingPosition"
+colnames(race_results)[colnames(race_results) == "positionNumber"] <- "FinishingPosition"
+
+race_results$points[is.na(race_results$points)] <- 0
+
+# People who dont finish the race will automatically receive the highest possible position 
+race_results$FinishingPosition[is.na(race_results$FinishingPosition)] <- 24
+race_results$reasonRetired[is.na(race_results$reasonRetired)] <- "Not retired"
+
+race_results$positionsGained[is.na(race_results$positionsGained)] <- (race_results$FinishingPosition[is.na(race_results$positionsGained)] - race_results$StartingPosition[is.na(race_results$positionsGained)]) * (-1)
+
+
+rm(new_DF)
+rm(qualifying_res)
+```
+
+## Creating the final DF
+
+# Cols: raceId, year, round, Location, Country, driverId, constructorId, engineManufactureId, Postion_Practice1, Postion_Practice2, Postion_Quali, Positon_Race, PointsRace
+
+```{r}
+F1_positions <- races_2000[, 1:7]
+F1_positions$time <- NULL
+F1_positions$date <- NULL
+
+
+colnames(F1_positions)[colnames(F1_positions) == "grandPrixId"] <- "country"
+colnames(F1_positions)[colnames(F1_positions) == "id"] <- "raceId"
+
+practice_1_short <- practice_1_2000[,1:5]
+practice_1_short$year <- NULL
+practice_1_short$round <- NULL
+
+F1_complete <- practice_1_short %>% left_join(F1_positions, by = "raceId")
+colnames(F1_complete)[colnames(F1_complete) == "positionNumber"] <- "PositionPractice1"
+
+practice_2_short <- practice_2_2000[1:5]
+practice_2_short$year <- NULL
+practice_2_short$round <- NULL
+
+practice_2_short$driverId
+
+F1_complete <- practice_2_short %>% inner_join(F1_complete, by = c("raceId", "driverId"))
+colnames(F1_complete)[colnames(F1_complete) == "positionNumber"] <- "PositionPractice2"
+
+
+race_results_short <- race_results[c("raceId", "driverId", "constructorId", "engineManufacturerId", "FinishingPosition", "StartingPosition", "points")]
+
+F1_complete <- race_results_short %>% inner_join(F1_complete, by = c("raceId", "driverId"))
+F1_complete <- F1_complete[, c("raceId", "year", "round", "country", "officialName", "driverId", "constructorId", "engineManufacturerId", "PositionPractice1", "PositionPractice2", "StartingPosition", "FinishingPosition", "points")]
+
+write.csv(F1_complete, file = "F1_preprocessed")
+
+```
+
+```{r}
+# Seperate DF NO RACE ID
+points_team <- read_csv("f1db-csv-2024.3.0/f1db-seasons-constructor-standings.csv")
+
+tail(points_team)
+```
