@@ -30,3 +30,12 @@ Maybe a classification of drivers, idk yet how exactly we could approach this.
 4. train our models
 5. interpret results in a report
 6. create presentation
+
+
+## Assignments 
+Linear Regression (Who will win the Race): Bolormaa
+Logistic Regression (Who will win the Race): Anna 
+
+How does the starting positions influence the propability of winning (Wiktor)
+
+Tree/Forest/PCA (Moritz, Christian) 
