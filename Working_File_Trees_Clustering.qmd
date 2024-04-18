@@ -1,0 +1,12 @@
+---
+title: "Trees"
+author: "Moritz Baldauf, Christian Vorhauser"
+format: html
+editor: visual
+---
+
+## Running Code
+
+```{r}
+1 + 1
+```
