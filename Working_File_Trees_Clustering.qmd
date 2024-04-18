@@ -5,8 +5,133 @@ format: html
 editor: visual
 ---
 
-## Running Code
+## 
+
+## Predicting how a driver would perform if put into a different Team
+
+### Using Tree-based methods
+
+```{r, warning=FALSE}
+library(rpart)
+library(party)
+library(ranger)
+library(partykit)
+```
 
 ```{r}
-1 + 1
+
+set.seed(134)
+
+F1_complete <- read.csv("data/F1_preprocessed")
+F1_complete$X <- NULL
+F1 <- F1_complete[,1:12] # Remove points because of high correlation to Finishing Position
+head(F1)
+tail(F1)
+str(F1)
+
+summary(F1)
+
 ```
+
+```{r}
+tree <- rpart(FinishingPosition~., data = F1)
+plot(as.party(tree))
+
+# We see that points is the biggest inpacting factor on starting postions
+# No suprise as you get a lot of points if you finish in a good postion 
+```
+
+```{r}
+ncol(F1)
+start_time <- Sys.time()
+tree2 <- rpart(FinishingPosition~., data = F1[1:1000,])
+end_time <- Sys.time()
+execution_time <- end_time - start_time
+print(execution_time)
+```
+
+
+```{r}
+plot(as.party(tree2))
+
+full_tree <- rpart(FinishingPosition~., data = F1, control = list(cp = 0))
+rpart::plotcp(full_tree) # Super hard to read anything
+
+full_tree_zoom <- rpart(FinishingPosition~., data = F1, control = list(cp = 0.005)) # Zoom in
+rpart::plotcp(full_tree_zoom)
+printcp(full_tree_zoom)
+
+```
+
+```{r}
+
+pruned_tree <- prune(full_tree, cp = full_tree$cptable[5, "CP"])
+
+plot(as.party(pruned_tree))
+
+```
+
+```{r}
+
+yhat <- predict(pruned_tree)
+hist(yhat, main = "Title") # Not exactly sure what this means, but it kinda makes sens that we have more observations on the higher end because of people not finishing
+
+
+```
+```{r}
+
+#predict(pruned_tree, )
+
+str(F1)
+raceId <- 1102
+year <- 2024
+round <- 1 
+country <- "bahrain"
+officialName <- "Formula 1 Gulf Air Bahrain Grand Prix 2024"
+driverId <- "max-verstappen"
+constructorId <- "red-bull"
+engineManufacturerId <- "honda-rbpt"
+PositionPractice1 <- 1
+PositionPractice2 <- 20
+StartingPosition <- 20
+FinishingPosition <- 20
+
+colnames(F1)
+str(F1)
+Predictor_df <- data.frame(raceId, year, round, country, officialName, driverId, constructorId, engineManufacturerId, PositionPractice1, PositionPractice2, StartingPosition, FinishingPosition)
+
+predict(pruned_tree, Predictor_df)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
