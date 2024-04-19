@@ -22,7 +22,7 @@ library(partykit)
 
 set.seed(134)
 
-F1_complete <- read.csv("data/F1_preprocessed")
+F1_complete <- read.csv("data/F1_preprocessed",stringsAsFactors = T)
 F1_complete$X <- NULL
 F1 <- F1_complete[,1:12] # Remove points because of high correlation to Finishing Position
 head(F1)
@@ -36,7 +36,6 @@ summary(F1)
 ```{r}
 tree <- rpart(FinishingPosition~., data = F1)
 plot(as.party(tree))
-
 # We see that points is the biggest inpacting factor on starting postions
 # No suprise as you get a lot of points if you finish in a good postion 
 ```
@@ -44,12 +43,11 @@ plot(as.party(tree))
 ```{r}
 ncol(F1)
 start_time <- Sys.time()
-tree2 <- rpart(FinishingPosition~., data = F1[1:1000,])
+tree2 <- rpart(FinishingPosition~., data = F1)
 end_time <- Sys.time()
 execution_time <- end_time - start_time
 print(execution_time)
 ```
-
 
 ```{r}
 plot(as.party(tree2))
@@ -74,10 +72,11 @@ plot(as.party(pruned_tree))
 ```{r}
 
 yhat <- predict(pruned_tree)
-hist(yhat, main = "Title") # Not exactly sure what this means, but it kinda makes sens that we have more observations on the higher end because of people not finishing
+hist(yhat, main = "Title",breaks = 24) # Not exactly sure what this means, but it kinda makes sens that we have more observations on the higher end because of people not finishing
 
 
 ```
+
 ```{r}
 
 #predict(pruned_tree, )
@@ -92,46 +91,117 @@ driverId <- "max-verstappen"
 constructorId <- "red-bull"
 engineManufacturerId <- "honda-rbpt"
 PositionPractice1 <- 1
-PositionPractice2 <- 20
-StartingPosition <- 20
-FinishingPosition <- 20
+PositionPractice2 <- 4
+StartingPosition <- 2
 
 colnames(F1)
 str(F1)
-Predictor_df <- data.frame(raceId, year, round, country, officialName, driverId, constructorId, engineManufacturerId, PositionPractice1, PositionPractice2, StartingPosition, FinishingPosition)
+Predictor_df <- data.frame(raceId, year, round, country, officialName, driverId, constructorId, engineManufacturerId, PositionPractice1, PositionPractice2, StartingPosition)
 
 predict(pruned_tree, Predictor_df)
 
 ```
 
+## RF
 
+```{r}
+F1[is.na(F1$StartingPosition),]$StartingPosition <- 0  
+rf <- ranger(FinishingPosition ~. , data = F1, probability = FALSE, importance = "permutation")
 
+print(rf)
 
+plot(as.table(importance(rf)))
+```
 
+From the importance plot we see that, surprisingly, round, country and driverId are the least important ones. The positions in the Practices and Qualifying are the most important, as they influence the starting position and winning from the front is generally easier.
 
+### Partial dependency plot
 
+```{r}
+grid <- seq(1,24,length.out = 24)
+nd <- F1[sample.int(nrow(F1),1000),]
+prs <- lapply(grid, \(val) {
+  nd$StartingPosition <- val
+  predict(rf, data = nd, type = "response")$predictions
+})
 
+matplot(grid, t(do.call("cbind",prs)), type = "l",lty = 1, col = rgb(.1,.1,.1,.1))
+```
 
+Here we can see that the higher the StartingPosition the more important it is in splitting the trees, while for the first 10 Starting positions it is not too important.
 
+## Predicting Finishing Position for 2 drivers
 
+We use Max Verstappen and Logan Sargeant for this example and also switch their cars to see the influence the model predicts. The race will be Bahrain 2024.
 
+```{r}
+set.seed(345)
 
+raceId <- 1102
+year <- 2024
+round <- 1 
+country <- "bahrain"
+officialName <- "Formula 1 Gulf Air Bahrain Grand Prix 2024"
+driverId <- "max-verstappen"
+constructorId <- "red-bull"
+engineManufacturerId <- "honda-rbpt"
+PositionPractice1 <- 6
+PositionPractice2 <- 6
+StartingPosition <- 1
 
+nd <- data.frame(raceId, year, round,country,officialName, driverId, constructorId, engineManufacturerId, PositionPractice1, PositionPractice2, StartingPosition)
 
+predict(rf, data = nd, type = "response")$predictions
 
+raceId <- 1102
+year <- 2024
+round <- 1 
+country <- "bahrain"
+officialName <- "Formula 1 Gulf Air Bahrain Grand Prix 2024"
+driverId <- "logan-sargeant"
+constructorId <- "red-bull"
+engineManufacturerId <- "honda-rbpt"
+PositionPractice1 <- 16
+PositionPractice2 <- 13
+StartingPosition <- 18
 
+nd <- data.frame(raceId, year, round,country,officialName, driverId, constructorId, engineManufacturerId, PositionPractice1, PositionPractice2, StartingPosition)
 
+predict(rf, data = nd, type = "response")$predictions
 
+raceId <- 1102
+year <- 2024
+round <- 1 
+country <- "bahrain"
+officialName <- "Formula 1 Gulf Air Bahrain Grand Prix 2024"
+driverId <- "max-verstappen"
+constructorId <- "williams"
+engineManufacturerId <- "mercedes"
+PositionPractice1 <- 6
+PositionPractice2 <- 6
+StartingPosition <- 1
 
+nd <- data.frame(raceId, year, round,country,officialName, driverId, constructorId, engineManufacturerId, PositionPractice1, PositionPractice2, StartingPosition)
 
+predict(rf, data = nd, type = "response")$predictions
 
+raceId <- 1102
+year <- 2024
+round <- 1 
+country <- "bahrain"
+officialName <- "Formula 1 Gulf Air Bahrain Grand Prix 2024"
+driverId <- "logan-sargeant"
+constructorId <- "williams"
+engineManufacturerId <- "mercedes"
+PositionPractice1 <- 16
+PositionPractice2 <- 13
+StartingPosition <- 18
 
+nd <- data.frame(raceId, year, round,country,officialName, driverId, constructorId, engineManufacturerId, PositionPractice1, PositionPractice2, StartingPosition)
 
+predict(rf, data = nd, type = "response")$predictions
+```
 
+We see that the model predicts base-Max to finish in 4th place given his parameters and 8th for driving in Logans car. Vice versa, base-Logan is predicted to finish in 18th place while Logan in the RedBull is predicted to finish in 16th place.
 
-
-
-
-
-
-
+From this we conclude that the car does make a big difference in the finishing Position of the race.
