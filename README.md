@@ -36,4 +36,4 @@ Maybe a classification of drivers, idk yet how exactly we could approach this.
 - Linear Regression (Who will win the Race): Bolormaa
 - Logistic Regression (Who will win the Race): Anna 
 - How does the starting positions influence the propability of winning (Wiktor)
-- Tree/Forest/PCA: (Moritz, Christian) Forest and Tree should be done ig, a comparison is still missing
+- Tree/Forest/PCA: (Moritz, Christian) Clustering is done, forest and tree "work" no comparisons yet tho
