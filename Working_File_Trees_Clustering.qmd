@@ -41,15 +41,6 @@ plot(as.party(tree))
 ```
 
 ```{r}
-ncol(F1)
-start_time <- Sys.time()
-tree2 <- rpart(FinishingPosition~., data = F1)
-end_time <- Sys.time()
-execution_time <- end_time - start_time
-print(execution_time)
-```
-
-```{r}
 plot(as.party(tree2))
 
 full_tree <- rpart(FinishingPosition~., data = F1, control = list(cp = 0))
@@ -87,8 +78,8 @@ year <- 2024
 round <- 1 
 country <- "bahrain"
 officialName <- "Formula 1 Gulf Air Bahrain Grand Prix 2024"
-driverId <- "max-verstappen"
-constructorId <- "red-bull"
+driverId <- "charles-leclerc"
+constructorId <- "mclaren"
 engineManufacturerId <- "honda-rbpt"
 PositionPractice1 <- 1
 PositionPractice2 <- 4
@@ -110,8 +101,7 @@ F1[is.na(F1$StartingPosition),]$StartingPosition <- 0
 rf <- ranger(FinishingPosition ~. , data = F1, probability = FALSE, importance = "permutation")
 
 print(rf)
-
-plot(as.table(importance(rf)))
+plot(as.table(importance(rf)), ylab="Importance", main = "Variance Importance at Trees = 500", las = 2, cex.axis = 0.5)
 ```
 
 From the importance plot we see that, surprisingly, round, country and driverId are the least important ones. The positions in the Practices and Qualifying are the most important, as they influence the starting position and winning from the front is generally easier.
@@ -199,8 +189,93 @@ PositionPractice2 <- 13
 StartingPosition <- 18
 
 nd <- data.frame(raceId, year, round,country,officialName, driverId, constructorId, engineManufacturerId, PositionPractice1, PositionPractice2, StartingPosition)
+single <- c()
+for(i in 1:24){
+raceresults <- predict(rf, data = nd[i,], type = "response")$predictions
+}
 
-predict(rf, data = nd, type = "response")$predictions
+hist(single)
+hist(all_once)
+```
+
+## How good will Lewis Hamilton be when Racing for Ferrari next Season?
+
+```{r}
+
+
+#set.seed(345)
+
+raceId <- c(seq(1125, 1124+24))
+year <- c(rep(2025, 24))
+round <- c(seq(1, 24))
+
+
+country <- c("australia", "china", "japan", "bahrain", "saudi-arabia", "miami", "emilia-romagna
+", "monaco", "spain", "canada", "austria", "great-britain", "belgium", "hungary", "netherlands", "italy", "azerbaijan", "singapore", "united-states", "mexico", "brazil", "las-vegas", "qatar", "abu-dhabi")
+
+
+officialName <- c("Formula 1 Rolex Australian Grand Prix 2024", "Formula 1 2025 Heineken Chinese Grand Prix", "Formula 1 Lenovo Japanese Grand Prix 2025", "Formula 1 Gulf Air Bahrain Grand Prix 2025", "Formula 1 stc Saudi Arabian Grand Prix 2025", "	
+Formula 1 Crypto.com Miami Grand Prix 2025", "Formula 1 Rolex Gran Premio dell'Emilia Romagna 2025", "Formula 1 Grand Prix de Monaco 2025", "Formula 1 Pirelli Gran Premio de España 2025", "Formula 1 Pirelli Grand Prix du Canada 2025", "Formula 1 Grosser Preis von Österreich 2025", "Formula 1 Lenovo British Grand Prix 2025", "	
+Formula 1 Rolex Belgian Grand Prix 2025", "Formula 1 Aramco Magyar Nagydíj 2025", "Formula 1 Heineken Dutch Grand Prix 2025", "Formula 1 Pirelli Gran Premio d'Italia 2025", "Formula 1 Azerbaijan Grand Prix 2025", "	
+Formula 1 Singapore Airlines Singapore Grand Prix 2025", "Formula 1 Aramco United States Grand Prix 2025", "ormula 1 Heineken Gran Premio de la Ciudad de México 2025", "Formula 1 Heineken Grande Prêmio de São Paulo 2025", "Formula 1 Heineken Silver Las Vegas Grand Prix 2023", "Formula 1 Ooredoo Qatar Grand Prix 2021", "Formula 1 Etihad Airways Abu Dhabi Grand Prix 2021")
+                  
+                  
+driverId <- c(rep("lewis-hamilton", 24))
+constructorId <- c(rep("ferrari", 24))
+engineManufacturerId <- c(rep("ferrari", 24))
+
+# We can assume that for the starting postion that he will alawys be in the top 10 
+# For the practice the positon can be in the full range
+
+PositionPractice1 <- c(sample(1:10, 24, replace = TRUE))
+PositionPractice2 <- c(sample(1:8, 24, replace = TRUE))
+StartingPosition <- c(sample(1:6, 24, replace = TRUE))
+
+nd_fer <- data.frame(raceId, year, round,country,officialName, driverId, constructorId, engineManufacturerId, PositionPractice1, PositionPractice2, StartingPosition)
+
+
+places_fer <- predict(rf, data = nd_fer, type = "response")$predictions
+places_fer <- round(places, 0)
+
+
+hist(round(places_fer, 0), main = "Distribution of Finishing Positions")
+
+
+getF1Points <- function(positions) {
+  # Define the points system for positions 1 through 10
+  points_map <- c(25, 18, 15, 12, 10, 8, 6, 4, 2, 1)
+  
+  # Map the finishing positions to the points, positions beyond 10 get 0 points
+  points <- sapply(positions, function(x) {
+    if (x <= 10) points_map[x] else 0
+  })
+  
+  return(points)
+}
+
+points_fer <- getF1Points(places_fer)
+
+plot(cumsum(points_fer), type = "l", xlab= "Race Nr", ylab = "Points Scored", main = "Points scored by Lewis Hamiltion in 2025")
+
+```
+
+# THIS CAN BE REMOVED FOR THE FINAL VERSION
+
+# Getting a feeling for the averrage starting postions per team
+
+```{r}
+Ferrari <- F1[which(F1$constructorId == "ferrari"), ]
+head(Ferrari)
+
+mean(Ferrari$PositionPractice1)
+mean(Ferrari$PositionPractice2)
+mean(Ferrari$StartingPosition)
+
+mercedes <- F1[which(F1$constructorId == "mercedes"), ]
+head(mercedes)
+
+mean(mercedes$PositionPractice1)
+
 ```
 
 We see that the model predicts base-Max to finish in 4th place given his parameters and 8th for driving in Logans car. Vice versa, base-Logan is predicted to finish in 18th place while Logan in the RedBull is predicted to finish in 16th place.
