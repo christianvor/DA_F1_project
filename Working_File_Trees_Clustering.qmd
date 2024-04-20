@@ -293,40 +293,6 @@ plot(F1$driverId,F1$FinishingPosition)
 plot(F1$raceId,F1$engineManufacturerId)
 ```
 
-We create a subset of the dataframe which groups the data by constructor and year and sums their points. We also only use 2010 to 2023 as the scoring system changed in 2010 and 2024 has too few races.
-
 ```{r}
-# creating datapoints for clustering, points scored per team per year
-# we cluster into high scorers, mid-scorers and low scorers
-library(dplyr)
 
-pts_const_y <- F1_complete %>%
-                  group_by(constructorId,year) %>%
-                  summarize(sum(points))
-colnames(pts_const_y) <- c("constructorId","year","points")
-pts_const_y <- pts_const_y[which(pts_const_y$year >= 2010 & pts_const_y$year < 2024 ),]
-plot(pts_const_y$year,pts_const_y$points,col = pts_const_y$constructorId)
-```
-
-We make 4 clusters which can be interpreted as "very little points", "did alright", "did great", "top team(s)".
-
-```{r}
-set.seed(1)
-kms <- kmeans(pts_const_y[,2:3], centers = 4, nstart = 10)
-plot(pts_const_y$year,pts_const_y$points, col = kms$cluster+1,pch = 18)
-text(pts_const_y$year,pts_const_y$points, labels = pts_const_y$constructorId, adj = c(-0.15,0.5),cex = 0.7)
-```
-
-To give an overview on how often the teams were in the clusters. Cluster numbering is as follows: 1 - "top team(s)", 4 - "did great", 2 - "did alright", 3 - "very little points".
-
-```{r}
-pts_const_y$cluster <- kms$cluster
-clusters_overview <- pts_const_y %>%
-                        group_by(cluster,constructorId) %>%
-                        summarise(Count = n())
-clusters_overview
-
-clusters_overview %>%
-  group_by(cluster) %>%
-  summarise(numTeams = n())
 ```
