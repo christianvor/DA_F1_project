@@ -77,5 +77,44 @@ coeffTrain2
 ```
 
 ```{r}
-#I will still do multiple linear regression here - patience please
+summary(fitPos)$r.squared
+
+fitAll <- lm(FinishingPosition ~ StartingPosition + PositionPractice1 + PositionPractice2, data = data_clean)
+
+fitAll
+summary(fitAll)
+
+#the R-squared is insignificantly higher than with the model with just the Starting position
 ```
+
+```{r}
+#AIC(fitAll, fitPos)
+
+fitStep <- step(fitAll, direction = "both")
+```
+
+```{r}
+n <- nrow(data_clean)
+n1 <- floor(n*0.9) # number of obs in train set
+set.seed(1234) ## for reproducibility
+id_train <- sample(1:n, n1)
+train_dat <- data_clean[id_train, ]
+test_dat  <- data_clean[-id_train, ]
+```
+
+```{r}
+fitPos <- lm(FinishingPosition ~ StartingPosition, data = train_dat)
+fitAll <- lm(FinishingPosition ~ StartingPosition + PositionPractice1 + 
+               PositionPractice2, data = train_dat)
+
+y_hat_Pos <- predict(fitPos, newdata = test_dat) # predictions
+
+y_hat_All <- predict(fitAll, newdata = test_dat) # predictions
+```
+
+```{r}
+sqrt(c(mean((y_hat_Pos - test_dat$FinishingPosition)^2), 
+       mean((y_hat_All - test_dat$FinishingPosition)^2)))
+```
+
+The MSE is pretty high but I mean we are predicting data based on only integers. This is honestly not that bad. While one can learn a few basic things about the finishing position based on the starting positions, it may not be the ideal approach.
