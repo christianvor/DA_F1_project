@@ -3,6 +3,9 @@
 #Welcome to my (Wiktor's) beautiful mess of a file where I try to have some fun with this data and also wrap my head around it so it actually makes some sense to a human being
 #Code here can be messy, uncommented and inefficient, please be patient
 
+library(ggplot2)
+library(tidyverse)
+
 data <- read.csv('data/F1_preprocessed')
 
 head(data)
@@ -51,3 +54,29 @@ for(i in 1:length(data$FinishingPosition)) {
 data$win <- wins
 
 #plot(FinishingPosition~PositionPractice2, col=as.numeric(win), data = data)
+
+#-------------------------------------------------------------------------------------------------------------------
+
+#throwing out the NAs and all rides that have the finishing position 24
+#the NAs break the code and the finishing position 24 mostly means that the driver did not finish the race at all
+data_clean <- na.omit(data)
+data_clean <- data_clean[which(data_clean$FinishingPosition != 24),]
+
+#plotting the data in this density plot
+#since so much of the data is integers, the scatterplot does not give a good image of the actual correlation
+baseplot <- ggplot(data_clean, aes(x=StartingPosition, y=FinishingPosition) ) +
+  stat_density_2d(aes(fill = ..level..), geom = "polygon", colour="white") +
+  scale_x_continuous(n.breaks = 25) +
+  scale_y_continuous(n.breaks = 25)
+
+baseplot
+
+#the starting position has a strong positive correlation of 0.74 to the finishing position
+#the other variables were included as a check
+#it seems that the two practice positions are also correlated to the actual starting position
+cor(data_clean[, 10:14])
+
+fitPos <- lm(FinishingPosition ~ StartingPosition, data = data_clean)
+coeff <- coefficients(fitPos)
+eq = paste0("y = ", round(coeff[2],1), "*x + ", round(coeff[1],1))
+baseplot + geom_smooth(method = "lm", se = FALSE, colour="red")
