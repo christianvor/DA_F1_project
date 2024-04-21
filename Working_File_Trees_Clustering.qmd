@@ -12,6 +12,7 @@ editor: visual
 ### Using Tree-based methods
 
 ```{r, warning=FALSE}
+library(dplyr)
 library(rpart)
 library(party)
 library(ranger)
@@ -189,20 +190,21 @@ PositionPractice2 <- 13
 StartingPosition <- 18
 
 nd <- data.frame(raceId, year, round,country,officialName, driverId, constructorId, engineManufacturerId, PositionPractice1, PositionPractice2, StartingPosition)
-single <- c()
-for(i in 1:24){
-raceresults <- predict(rf, data = nd[i,], type = "response")$predictions
-}
 
-hist(single)
-hist(all_once)
+predict(rf,data = nd, type = "response")$predictions
+
+#single <- c()
+#for(i in 1:4){
+#raceresults <- predict(rf, data = nd[i,], type = "response")$predictions
+#}
+
+#hist(single)
+#hist(all_once)
 ```
 
 ## How good will Lewis Hamilton be when Racing for Ferrari next Season?
 
 ```{r}
-
-
 #set.seed(345)
 
 raceId <- c(seq(1125, 1124+24))
@@ -235,7 +237,7 @@ nd_fer <- data.frame(raceId, year, round,country,officialName, driverId, constru
 
 
 places_fer <- predict(rf, data = nd_fer, type = "response")$predictions
-places_fer <- round(places, 0)
+places_fer <- round(places_fer, 0)
 
 
 hist(round(places_fer, 0), main = "Distribution of Finishing Positions")
@@ -293,6 +295,46 @@ plot(F1$driverId,F1$FinishingPosition)
 plot(F1$raceId,F1$engineManufacturerId)
 ```
 
-```{r}
+We create a subset of the dataframe which groups the data by constructor and year and sums their points. We also only use 2010 to 2023 as the scoring system changed in 2010 and 2024 has too few races.
 
+```{r}
+# creating datapoints for clustering, points scored per team per year}
+# we cluster into high scorers, mid-scorers and low scorers
+
+pts_const_y <- F1_complete %>%
+                  group_by(constructorId,year) %>%
+                  summarize(sum(points))
+colnames(pts_const_y) <- c("constructorId","year","points")
+
+pts_const_y <- pts_const_y[which(pts_const_y$year >= 2010 & pts_const_y$year < 2024 ),]
+ 
+
+plot(pts_const_y$year,pts_const_y$points,col = pts_const_y$constructorId)
 ```
+
+We make 4 clusters which can be interpreted as "very little points", "did alright", "did great", "top team(s)".
+
+```{r}
+set.seed(1)
+kms <- kmeans(pts_const_y[,2:3], centers = 4, nstart = 10)
+plot(pts_const_y$year,pts_const_y$points, col = kms$cluster+1,pch = 18)
+ 
+text(pts_const_y$year,pts_const_y$points, labels = pts_const_y$constructorId, adj = c(-0.15,0.5),cex = 0.7)
+```
+
+To give an overview on how often the teams were in the clusters. Cluster numbering is as follows: 1 - "top team(s)", 4 - "did great", 2 - "did alright", 3 - "very little points".
+
+```{r}
+pts_const_y$cluster <- kms$cluster
+ 
+clusters_overview <- pts_const_y %>%
+                        group_by(cluster,constructorId) %>%
+                        summarise(Count = n())
+
+clusters_overview
+clusters_overview %>%
+  group_by(cluster) %>%
+  summarise(numTeams = n())
+```
+The first table shows us how many times each team has been in each cluster, giving us a feel for how much their performance varies over time.
+In the second table we can see how many different teams have been in the different clusters which is an interesting visual since we can see that only 4 teams managed to be in the top cluster over the last 13 years, but also only 5 different teams have been in the lowest cluster over this time. From this we can conclude that good teams stay good most of the times and poor performing teams have a hard time scoring better.
