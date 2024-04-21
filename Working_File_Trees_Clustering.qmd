@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 ---
 title: "Trees"
 author: "Moritz Baldauf, Christian Vorhauser"
@@ -340,3 +341,347 @@ clusters_overview %>%
 ```
 The first table shows us how many times each team has been in each cluster, giving us a feel for how much their performance varies over time.
 In the second table we can see how many different teams have been in the different clusters which is an interesting visual since we can see that only 4 teams managed to be in the top cluster over the last 13 years, but also only 5 different teams have been in the lowest cluster over this time. From this we can conclude that good teams stay good most of the times and poor performing teams have a hard time scoring better.
+=======
+---
+title: "Trees"
+author: "Moritz Baldauf, Christian Vorhauser"
+format: html
+editor: visual
+---
+
+## 
+
+## Predicting how a driver would perform if put into a different Team
+
+### Using Tree-based methods
+
+```{r, warning=FALSE}
+library(dplyr)
+library(rpart)
+library(party)
+library(ranger)
+library(partykit)
+```
+
+```{r}
+
+set.seed(134)
+
+F1_complete <- read.csv("data/F1_preprocessed",stringsAsFactors = T)
+F1_complete$X <- NULL
+F1 <- F1_complete[,1:12]
+F1_new <- na.omit(F1)
+F1 <- F1_new[which(F1_new$FinishingPosition != 24),]# Remove points because of high correlation to Finishing Position
+head(F1)
+tail(F1)
+str(F1)
+
+summary(F1)
+
+```
+
+```{r}
+tree <- rpart(FinishingPosition~., data = F1)
+plot(as.party(tree))
+# We see that points is the biggest inpacting factor on starting postions
+# No suprise as you get a lot of points if you finish in a good postion 
+```
+
+```{r}
+#plot(as.party(tree2))
+
+full_tree <- rpart(FinishingPosition~., data = F1, control = list(cp = 0))
+rpart::plotcp(full_tree) # Super hard to read anything
+
+full_tree_zoom <- rpart(FinishingPosition~., data = F1, control = list(cp = 0.005)) # Zoom in
+rpart::plotcp(full_tree_zoom)
+printcp(full_tree_zoom)
+
+```
+
+```{r}
+
+pruned_tree <- prune(full_tree, cp = full_tree$cptable[5, "CP"])
+
+plot(as.party(pruned_tree))
+
+```
+
+```{r}
+
+yhat <- predict(pruned_tree,data = F1)
+hist(yhat, main = "Title",breaks = 24) # Not exactly sure what this means, but it kinda makes sens that we have more observations on the higher end because of people not finishing
+
+
+```
+
+```{r}
+
+#predict(pruned_tree, )
+
+#str(F1)
+raceId <- 1102
+year <- 2024
+round <- 1 
+country <- "bahrain"
+officialName <- "Formula 1 Gulf Air Bahrain Grand Prix 2024"
+driverId <- "charles-leclerc"
+constructorId <- "mclaren"
+engineManufacturerId <- "honda-rbpt"
+PositionPractice1 <- 1
+PositionPractice2 <- 4
+StartingPosition <- 2
+
+colnames(F1)
+#str(F1)
+Predictor_df <- data.frame(raceId, year, round, country, officialName, driverId, constructorId, engineManufacturerId, PositionPractice1, PositionPractice2, StartingPosition)
+
+predict(pruned_tree, Predictor_df)
+
+```
+
+## RF
+
+```{r}
+set.seed(345)
+#F1[is.na(F1$StartingPosition),]$StartingPosition <- 0  
+rf <- ranger(FinishingPosition ~. , data = F1, probability = FALSE, importance = "permutation")
+
+print(rf)
+plot(as.table(importance(rf)), ylab="Importance", main = "Variance Importance at Trees = 500", las = 2, cex.axis = 0.5)
+```
+
+From the importance plot we see that, surprisingly, round, country and driverId are the least important ones. The positions in the Practices and Qualifying are the most important, as they influence the starting position and winning from the front is generally easier.
+
+### Partial dependency plot
+
+```{r}
+grid <- seq(1,24,length.out = 24)
+nd <- F1[sample.int(nrow(F1),1000),]
+prs <- lapply(grid, \(val) {
+  nd$StartingPosition <- val
+  predict(rf, data = nd, type = "response")$predictions
+})
+
+matplot(grid, t(do.call("cbind",prs)), type = "l",lty = 1, col = rgb(.1,.1,.1,.1))
+```
+
+Here we can see that the higher the StartingPosition the more important it is in splitting the trees, while for the first 10 Starting positions it is not too important.
+
+## Predicting Finishing Position for 2 drivers
+
+We use Max Verstappen and Logan Sargeant for this example and also switch their cars to see the influence the model predicts. The race will be Bahrain 2024.
+
+```{r}
+set.seed(345)
+
+raceId <- 1102
+year <- 2024
+round <- 1 
+country <- "bahrain"
+officialName <- "Formula 1 Gulf Air Bahrain Grand Prix 2024"
+driverId <- "max-verstappen"
+constructorId <- "red-bull"
+engineManufacturerId <- "honda-rbpt"
+PositionPractice1 <- 6
+PositionPractice2 <- 6
+StartingPosition <- 1
+
+nd <- data.frame(raceId, year, round,country,officialName, driverId, constructorId, engineManufacturerId, PositionPractice1, PositionPractice2, StartingPosition)
+
+predict(rf, data = nd, type = "response")$predictions
+
+raceId <- 1102
+year <- 2024
+round <- 1 
+country <- "bahrain"
+officialName <- "Formula 1 Gulf Air Bahrain Grand Prix 2024"
+driverId <- "logan-sargeant"
+constructorId <- "red-bull"
+engineManufacturerId <- "honda-rbpt"
+PositionPractice1 <- 16
+PositionPractice2 <- 13
+StartingPosition <- 18
+
+nd <- data.frame(raceId, year, round,country,officialName, driverId, constructorId, engineManufacturerId, PositionPractice1, PositionPractice2, StartingPosition)
+
+predict(rf, data = nd, type = "response")$predictions
+
+raceId <- 1102
+year <- 2024
+round <- 1 
+country <- "bahrain"
+officialName <- "Formula 1 Gulf Air Bahrain Grand Prix 2024"
+driverId <- "max-verstappen"
+constructorId <- "williams"
+engineManufacturerId <- "mercedes"
+PositionPractice1 <- 6
+PositionPractice2 <- 6
+StartingPosition <- 1
+
+nd <- data.frame(raceId, year, round,country,officialName, driverId, constructorId, engineManufacturerId, PositionPractice1, PositionPractice2, StartingPosition)
+
+predict(rf, data = nd, type = "response")$predictions
+
+raceId <- 1102
+year <- 2024
+round <- 1 
+country <- "bahrain"
+officialName <- "Formula 1 Gulf Air Bahrain Grand Prix 2024"
+driverId <- "logan-sargeant"
+constructorId <- "williams"
+engineManufacturerId <- "mercedes"
+PositionPractice1 <- 16
+PositionPractice2 <- 13
+StartingPosition <- 18
+
+nd <- data.frame(raceId, year, round,country,officialName, driverId, constructorId, engineManufacturerId, PositionPractice1, PositionPractice2, StartingPosition)
+
+predict(rf,data = nd, type = "response")$predictions
+
+#single <- c()
+#for(i in 1:4){
+#raceresults <- predict(rf, data = nd[i,], type = "response")$predictions
+#}
+
+#hist(single)
+#hist(all_once)
+```
+
+## How good will Lewis Hamilton be when Racing for Ferrari next Season?
+
+```{r}
+#set.seed(345)
+
+raceId <- c(seq(1125, 1124+24))
+year <- c(rep(2025, 24))
+round <- c(seq(1, 24))
+
+
+country <- c("australia", "china", "japan", "bahrain", "saudi-arabia", "miami", "emilia-romagna
+", "monaco", "spain", "canada", "austria", "great-britain", "belgium", "hungary", "netherlands", "italy", "azerbaijan", "singapore", "united-states", "mexico", "brazil", "las-vegas", "qatar", "abu-dhabi")
+
+
+officialName <- c("Formula 1 Rolex Australian Grand Prix 2024", "Formula 1 2025 Heineken Chinese Grand Prix", "Formula 1 Lenovo Japanese Grand Prix 2025", "Formula 1 Gulf Air Bahrain Grand Prix 2025", "Formula 1 stc Saudi Arabian Grand Prix 2025", "	
+Formula 1 Crypto.com Miami Grand Prix 2025", "Formula 1 Rolex Gran Premio dell'Emilia Romagna 2025", "Formula 1 Grand Prix de Monaco 2025", "Formula 1 Pirelli Gran Premio de España 2025", "Formula 1 Pirelli Grand Prix du Canada 2025", "Formula 1 Grosser Preis von Österreich 2025", "Formula 1 Lenovo British Grand Prix 2025", "	
+Formula 1 Rolex Belgian Grand Prix 2025", "Formula 1 Aramco Magyar Nagydíj 2025", "Formula 1 Heineken Dutch Grand Prix 2025", "Formula 1 Pirelli Gran Premio d'Italia 2025", "Formula 1 Azerbaijan Grand Prix 2025", "	
+Formula 1 Singapore Airlines Singapore Grand Prix 2025", "Formula 1 Aramco United States Grand Prix 2025", "ormula 1 Heineken Gran Premio de la Ciudad de México 2025", "Formula 1 Heineken Grande Prêmio de São Paulo 2025", "Formula 1 Heineken Silver Las Vegas Grand Prix 2025", "Formula 1 Ooredoo Qatar Grand Prix 2021", "Formula 1 Etihad Airways Abu Dhabi Grand Prix 2021")
+                  
+                  
+driverId <- c(rep("lewis-hamilton", 24))
+constructorId <- c(rep("ferrari", 24))
+engineManufacturerId <- c(rep("ferrari", 24))
+
+# We can assume that for the starting postion that he will alawys be in the top 10 
+# For the practice the positon can be in the full range
+
+PositionPractice1 <- c(sample(1:10, 24, replace = TRUE))
+PositionPractice2 <- c(sample(1:8, 24, replace = TRUE))
+StartingPosition <- c(sample(1:6, 24, replace = TRUE))
+
+nd_fer <- data.frame(raceId, year, round,country,officialName, driverId, constructorId, engineManufacturerId, PositionPractice1, PositionPractice2, StartingPosition)
+
+
+places_fer <- predict(rf, data = nd_fer, type = "response")$predictions
+places_fer <- round(places_fer, 0)
+
+
+hist(round(places_fer, 0), main = "Distribution of Finishing Positions")
+
+
+getF1Points <- function(positions) {
+  # Define the points system for positions 1 through 10
+  points_map <- c(25, 18, 15, 12, 10, 8, 6, 4, 2, 1)
+  
+  # Map the finishing positions to the points, positions beyond 10 get 0 points
+  points <- sapply(positions, function(x) {
+    if (x <= 10) points_map[x] else 0
+  })
+  
+  return(points)
+}
+
+points_fer <- getF1Points(places_fer)
+
+plot(cumsum(points_fer), type = "l", xlab= "Race Nr", ylab = "Points Scored", main = "Points scored by Lewis Hamiltion in 2025")
+
+```
+
+# THIS CAN BE REMOVED FOR THE FINAL VERSION
+
+# Getting a feeling for the averrage starting postions per team
+
+```{r}
+Ferrari <- F1[which(F1$constructorId == "ferrari"), ]
+head(Ferrari)
+
+mean(Ferrari$PositionPractice1)
+mean(Ferrari$PositionPractice2)
+mean(Ferrari$StartingPosition)
+
+mercedes <- F1[which(F1$constructorId == "mercedes"), ]
+head(mercedes)
+
+mean(mercedes$PositionPractice1)
+
+```
+
+We see that the model predicts base-Max to finish in 4th place given his parameters and 8th for driving in Logans car. Vice versa, base-Logan is predicted to finish in 18th place while Logan in the RedBull is predicted to finish in 16th place.
+
+From this we conclude that the car does make a big difference in the finishing Position of the race.
+
+## Clustering😩
+
+PCA only works for numeric, especially continuous values, so we cannot do it (sad)
+
+```{r}
+# random interesting graphs maybe
+plot(F1$constructorId,F1$FinishingPosition)
+plot(F1$driverId,F1$FinishingPosition)
+plot(F1$raceId,F1$engineManufacturerId)
+```
+
+We create a subset of the dataframe which groups the data by constructor and year and sums their points. We also only use 2010 to 2023 as the scoring system changed in 2010 and 2024 has too few races.
+
+```{r}
+# creating datapoints for clustering, points scored per team per year}
+# we cluster into high scorers, mid-scorers and low scorers
+
+pts_const_y <- F1_complete %>%
+                  group_by(constructorId,year) %>%
+                  summarize(sum(points))
+colnames(pts_const_y) <- c("constructorId","year","points")
+
+pts_const_y <- pts_const_y[which(pts_const_y$year >= 2010 & pts_const_y$year < 2024 ),]
+ 
+
+plot(pts_const_y$year,pts_const_y$points,col = 1, cex = 3, pch = 16) #pts_const_y$constructorId
+```
+
+We make 4 clusters which can be interpreted as "very little points", "did alright", "did great", "top team(s)".
+
+```{r}
+set.seed(1)
+kms <- kmeans(pts_const_y[,2:3], centers = 4, nstart = 10)
+plot(pts_const_y$year,pts_const_y$points, col = kms$cluster+1,pch = 18, cex = 4)
+ 
+text(pts_const_y$year,pts_const_y$points, labels = pts_const_y$constructorId, adj = c(-0.3,1),cex = 0.7)
+```
+
+To give an overview on how often the teams were in the clusters. Cluster numbering is as follows: 1 - "top team(s)", 4 - "did great", 2 - "did alright", 3 - "very little points".
+
+```{r}
+pts_const_y$cluster <- kms$cluster
+ 
+clusters_overview <- pts_const_y %>%
+                        group_by(cluster,constructorId) %>%
+                        summarise(Count = n())
+
+clusters_overview
+clusters_overview %>%
+  group_by(cluster) %>%
+  summarise(numTeams = n())
+```
+The first table shows us how many times each team has been in each cluster, giving us a feel for how much their performance varies over time.
+In the second table we can see how many different teams have been in the different clusters which is an interesting visual since we can see that only 4 teams managed to be in the top cluster over the last 13 years, but also only 5 different teams have been in the lowest cluster over this time. From this we can conclude that good teams stay good most of the times and poor performing teams have a hard time scoring better.
+>>>>>>> 510ba64968028cfebdd2ab475b3274871824f3df

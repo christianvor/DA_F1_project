@@ -1,0 +1,120 @@
+---
+title: "Predicting_Finishing_Position"
+author: "Wiktor"
+format: html
+editor: visual
+---
+
+```{r}
+library(ggplot2)
+library(tidyverse)
+```
+
+```{r}
+data <- read.csv('data/F1_preprocessed')
+
+head(data)
+str(data)
+summary(data)
+
+hist(data$points)
+max(data$points)
+```
+
+```{r}
+#throwing out the NAs and all rides that have the finishing position 24
+#the NAs break the code and the finishing position 24 mostly means that the driver did not finish the race at all
+data_clean <- na.omit(data)
+data_clean <- data_clean[which(data_clean$FinishingPosition != 24),]
+```
+
+```{r}
+baseplot <- ggplot(data_clean, aes(x=StartingPosition, y=FinishingPosition) ) +
+  stat_density_2d(aes(fill = ..level..), geom = "polygon", colour="white") +
+  scale_x_continuous(n.breaks = 25) +
+  scale_y_continuous(n.breaks = 25)
+
+baseplot
+```
+
+```{r}
+#the starting position has a strong positive correlation of 0.74 to the finishing position
+#the other variables were included as a check
+#it seems that the two practice positions are also correlated to the actual starting position
+cor(data_clean[, 10:14])
+```
+
+```{r}
+fitPos <- lm(FinishingPosition ~ StartingPosition, data = data_clean)
+coeff <- coefficients(fitPos)
+baseplot + geom_smooth(method = "lm", se = FALSE, colour="red")
+
+coeff
+```
+
+```{r}
+baseplotTrain1 <- ggplot(data_clean, aes(x=PositionPractice1, y=FinishingPosition) ) +
+  stat_density_2d(aes(fill = ..level..), geom = "polygon", colour="white") +
+  scale_x_continuous(n.breaks = 25) +
+  scale_y_continuous(n.breaks = 25)
+fitPosTrain1 <- lm(FinishingPosition ~ PositionPractice1, data = data_clean)
+coeffTrain1 <- coefficients(fitPosTrain1)
+baseplotTrain1 + geom_smooth(method = "lm", se = FALSE, colour="red")
+
+coeffTrain1
+```
+
+```{r}
+baseplotTrain2 <- ggplot(data_clean, aes(x=PositionPractice2, y=FinishingPosition) ) +
+  stat_density_2d(aes(fill = ..level..), geom = "polygon", colour="white") +
+  scale_x_continuous(n.breaks = 25) +
+  scale_y_continuous(n.breaks = 25)
+fitPosTrain2 <- lm(FinishingPosition ~ PositionPractice2, data = data_clean)
+coeffTrain2 <- coefficients(fitPosTrain2)
+baseplotTrain2 + geom_smooth(method = "lm", se = FALSE, colour="red")
+
+coeffTrain2
+```
+
+```{r}
+summary(fitPos)$r.squared
+
+fitAll <- lm(FinishingPosition ~ StartingPosition + PositionPractice1 + PositionPractice2, data = data_clean)
+
+fitAll
+summary(fitAll)
+
+#the R-squared is insignificantly higher than with the model with just the Starting position
+```
+
+```{r}
+#AIC(fitAll, fitPos)
+
+fitStep <- step(fitAll, direction = "both")
+```
+
+```{r}
+n <- nrow(data_clean)
+n1 <- floor(n*0.9) # number of obs in train set
+set.seed(1234) ## for reproducibility
+id_train <- sample(1:n, n1)
+train_dat <- data_clean[id_train, ]
+test_dat  <- data_clean[-id_train, ]
+```
+
+```{r}
+fitPos <- lm(FinishingPosition ~ StartingPosition, data = train_dat)
+fitAll <- lm(FinishingPosition ~ StartingPosition + PositionPractice1 + 
+               PositionPractice2, data = train_dat)
+
+y_hat_Pos <- predict(fitPos, newdata = test_dat) # predictions
+
+y_hat_All <- predict(fitAll, newdata = test_dat) # predictions
+```
+
+```{r}
+sqrt(c(mean((y_hat_Pos - test_dat$FinishingPosition)^2), 
+       mean((y_hat_All - test_dat$FinishingPosition)^2)))
+```
+
+The MSE is pretty high but I mean we are predicting data based on only integers. This is honestly not that bad. While one can learn a few basic things about the finishing position based on the starting positions, it may not be the ideal approach.
