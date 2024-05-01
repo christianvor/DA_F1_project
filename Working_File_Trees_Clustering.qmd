@@ -285,18 +285,28 @@ We see that the model predicts base-Max to finish in 4th place given his paramet
 
 From this we conclude that the car does make a big difference in the finishing Position of the race.
 
-## Clustering😩
+## Clustering
 
-PCA only works for numeric, especially continuous values, so we cannot do it (sad)
+As seen with the recent change of Lewis Hamilton from Mercedes to Ferrari, the team a driver belongs to, especially when he's good causes a huge commotion. But why is this the case? In the following few plots we take a look at teams and drivers in winning positions how team-competition changed over the years and then come to the main star of this section: clustering.
 
+Looking at the first plot we see constructors plotted against finishing position in boxplots, which shows us that many teams never managed to earn a winning position with some not even managing a position in the top 5. Is there a pattern with teams staying on top and worse performing teams having a hard time catching up?
+Before we look into that in more detail, let's take a look at 2 more plots.
 ```{r}
-# random interesting graphs maybe
 plot(F1$constructorId,F1$FinishingPosition)
+```
+
+Next we have all the drivers plotted against finishing position and again see only few reaching first place. This makes somewhat sense as now and in the past there has most often been a (very) dominant driver. Just looking at the last years we pretty much only see Verstappen and Hamilton on top. 
+
+Interestingly, in the next plot we see that the number of engine manufacturers decreased greatly over the years. Right now there are only 4 different ones for 10 teams, so more than 2 teams on average use the same engine. The longest "lines" here represent Ferrari, Mercedes and Renault.
+```{r}
 plot(F1$driverId,F1$FinishingPosition)
 plot(F1$raceId,F1$engineManufacturerId)
 ```
 
-We create a subset of the dataframe which groups the data by constructor and year and sums their points. We also only use 2010 to 2023 as the scoring system changed in 2010 and 2024 has too few races.
+Now let's focus on our question from earlier: Do good teams stay on top?
+We create a subset of the dataframe F1_complete which groups the data by constructor and year and sums their points. We also only use 2010 to 2023 as the scoring system changed in 2010 and 2024 has too few races.
+
+In the plot we see most of the points at the bottom, as expected. As we found out in the previous plots, many teams never made it to the top 5 or top10 and thus don't earn points in most of the races. If then the best drivers stay with their teams and remain dominant they accrue more and more points for them.
 
 ```{r}
 # creating datapoints for clustering, points scored per team per year}
@@ -310,10 +320,11 @@ colnames(pts_const_y) <- c("constructorId","year","points")
 pts_const_y <- pts_const_y[which(pts_const_y$year >= 2010 & pts_const_y$year < 2024 ),]
  
 
-plot(pts_const_y$year,pts_const_y$points,col = 1, cex = 3, pch = 16) #pts_const_y$constructorId
+plot(pts_const_y$year,pts_const_y$points) #pts_const_y$constructorId
 ```
 
-We make 4 clusters which can be interpreted as "very little points", "did alright", "did great", "top team(s)".
+We cluster the data into 4 to get "top teams", "great", "alright" and "bottom teams". This results in the same plot seen in our presentation and the mentioned barriers at around 470 Pts, 270 Pts and 100 Pts. Especially between the turquoise and green clusters we see a distance that clearly separates them. But also between red and turquoise has, with the exception of a few years, another step up. 
+So even between the best there is a clear gap to the best of the best. Our theory with dominant drivers can be seen here as well. RedBull is on top in 2010-2013 where Sebastian Vettel dominated and won the Championship, after that Hamilton could not be caught and Mercedes scored highest during 2014-2020/21. Now Verstappen is leaving the others in the dust, pushing RedBull back to the top.
 
 ```{r}
 set.seed(1)
@@ -322,8 +333,10 @@ plot(pts_const_y$year,pts_const_y$points, col = kms$cluster+1,pch = 18, cex = 4)
  
 text(pts_const_y$year,pts_const_y$points, labels = pts_const_y$constructorId, adj = c(-0.3,1),cex = 0.7)
 ```
-
-To give an overview on how often the teams were in the clusters. Cluster numbering is as follows: 1 - "top team(s)", 4 - "did great", 2 - "did alright", 3 - "very little points".
+To further quantify the dominance of these teams in the first 2 clusters we further summarize the data with dplyr to get a dataframe clusters_overview. The cluster numbers correspond to the analysis in the following way: 1 - "top teams", 2 - "alright", 3 - "bottom teams", 4 - "great". 
+In teh first we see that only 4 teams ever reached the top cluster, with them being Mercedes (8 times), RedBull (6 times), Ferrari (4) and McLaren (1). 
+Summarizing the count per cluster we find that not only were there only 4 teams in the best, but also only 5 teams in the next cluster. Deducting from the graph above, and checking with the df, it included the same teams plus Lotus F1. 
+The bottom 2 clusters have both a more expected number of teams in them. We have to kepp in mind, though, that teams sometimes switch names, and thus the same team can be counted twice in this analysis. 
 
 ```{r}
 pts_const_y$cluster <- kms$cluster
@@ -337,6 +350,5 @@ clusters_overview %>%
   group_by(cluster) %>%
   summarise(numTeams = n())
 ```
-The first table shows us how many times each team has been in each cluster, giving us a feel for how much their performance varies over time.
-In the second table we can see how many different teams have been in the different clusters which is an interesting visual since we can see that only 4 teams managed to be in the top cluster over the last 13 years, but also only 5 different teams have been in the lowest cluster over this time. From this we can conclude that good teams stay good most of the times and poor performing teams have a hard time scoring better.
 
+## Summary
