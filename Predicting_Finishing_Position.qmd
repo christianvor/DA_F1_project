@@ -10,39 +10,52 @@ library(ggplot2)
 library(tidyverse)
 ```
 
+The examination of the topic was started by taking the pre-processed data and checking it's structure as well as its summary. This was done in order to better understand the data set and to formulate a research problem.
+
 ```{r}
 data <- read.csv('data/F1_preprocessed')
 
 head(data)
 str(data)
 summary(data)
-
-hist(data$points)
-max(data$points)
 ```
 
-```{r}
-#throwing out the NAs and all rides that have the finishing position 24
-#the NAs break the code and the finishing position 24 mostly means that the driver did not finish the race at all
-data_clean <- na.omit(data)
-data_clean <- data_clean[which(data_clean$FinishingPosition != 24),]
-```
+The data was cleaned to eliminate a problem by including the entries with NAs or with the finishing position at 24. The finishing position of 24 is the last possible position and in the pre-processing step all of the drivers that did not finish the race were also assigned a finishing position of 24. The elimination of all entries with this observation is necessary to achieve an acceptable performance of the model.
+
+Plotting the data without cleaning it produces the following graph, which one may see is problematic.
 
 ```{r}
-baseplot <- ggplot(data_clean, aes(x=StartingPosition, y=FinishingPosition) ) +
+baseplot <- ggplot(data, aes(x=StartingPosition, y=FinishingPosition) ) +
   stat_density_2d(aes(fill = ..level..), geom = "polygon", colour="white") +
-  scale_x_continuous(n.breaks = 25) +
-  scale_y_continuous(n.breaks = 25)
+  scale_x_continuous(n.breaks = 24) +
+  scale_y_continuous(n.breaks = 24)
 
 baseplot
 ```
 
 ```{r}
-#the starting position has a strong positive correlation of 0.74 to the finishing position
-#the other variables were included as a check
-#it seems that the two practice positions are also correlated to the actual starting position
-cor(data_clean[, 10:14])
+data_clean <- na.omit(data)
+data_clean <- data_clean[which(data_clean$FinishingPosition != 24),]
 ```
+
+One can also check the correlation coefficients between all available positions on the cleaned data
+
+```{r}
+cor(data_clean[, 10:13])
+```
+
+After cleaning, plotting the same data gives a much clearer picture of the relation of the finishing position to the starting position.
+
+```{r}
+baseplot <- ggplot(data_clean, aes(x=StartingPosition, y=FinishingPosition) ) +
+  stat_density_2d(aes(fill = ..level..), geom = "polygon", colour="white") +
+  scale_x_continuous(n.breaks = 24) +
+  scale_y_continuous(n.breaks = 24)
+
+baseplot
+```
+
+From the correlation matrix and the density scatter plot above one may deduce a linear relationship between the finishing position and the starting position. The next plot includes the linear regression line on the plot.
 
 ```{r}
 fitPos <- lm(FinishingPosition ~ StartingPosition, data = data_clean)
@@ -51,6 +64,10 @@ baseplot + geom_smooth(method = "lm", se = FALSE, colour="red")
 
 coeff
 ```
+
+To comment on the results of this regression, we can notice a very strong trend. There is a very high density clustering around the first few starting and finishing position. With further starting positions, the density of points decreases. This could imply that the drivers that get a good starting position have enough of an advantage to pretty surely secure a good finishing position, while it also matters less with worse starting positions.
+
+Next, we also plot the regression of the two practice positions to the finishing position. While these observations are independent from the normal starting position, they show a high linear correlation, which was found to be interesting.
 
 ```{r}
 baseplotTrain1 <- ggplot(data_clean, aes(x=PositionPractice1, y=FinishingPosition) ) +
@@ -76,8 +93,11 @@ baseplotTrain2 + geom_smooth(method = "lm", se = FALSE, colour="red")
 coeffTrain2
 ```
 
+Next, a multiple linear regression was created with the two practice starting positions and the normal starting position. The R\^2 of this regression was slightly better than the one with just the starting position.
+
 ```{r}
-summary(fitPos)$r.squared
+summary(fitPos)
+
 
 fitAll <- lm(FinishingPosition ~ StartingPosition + PositionPractice1 + PositionPractice2, data = data_clean)
 
@@ -87,11 +107,13 @@ summary(fitAll)
 #the R-squared is insignificantly higher than with the model with just the Starting position
 ```
 
-```{r}
-#AIC(fitAll, fitPos)
+Next, a step fit was conducted and it concluded that all using all three starting positions produces the lowest possible AIC.
 
+```{r}
 fitStep <- step(fitAll, direction = "both")
 ```
+
+As the final step, the out-of-sample performance was checked among our regression models. The sample was split into 90% training data and 10% test data.
 
 ```{r}
 n <- nrow(data_clean)
@@ -117,4 +139,4 @@ sqrt(c(mean((y_hat_Pos - test_dat$FinishingPosition)^2),
        mean((y_hat_All - test_dat$FinishingPosition)^2)))
 ```
 
-The MSE is pretty high but I mean we are predicting data based on only integers. This is honestly not that bad. While one can learn a few basic things about the finishing position based on the starting positions, it may not be the ideal approach.
+The MSE of the model with the three starting positions was lower as well. This should mean that the multiple linear regression model is better at explaining the the finishing position.
