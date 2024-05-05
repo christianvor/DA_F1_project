@@ -1,0 +1,595 @@
+---
+title: "Formula 1 DA Project"
+author: "Group 2; Moritz Baldauf, Anna Fábián, Bolormaa Munkh-Erdene, Wiktor Uszko, Christian Vorhauser"
+format: html-notebook
+editor: visual
+---
+
+# Introduction
+
+```{r}
+#| warning: false
+#| message: false
+#| error: false
+#| echo: false
+library(dplyr)
+library(rpart)
+library(party)
+library(ranger)
+library(partykit)
+library(ggplot2)
+library(psych)
+```
+
+# Exploring the data
+
+```{r}
+F1 <- read.csv("./data/F1_preprocessed")
+F1 <- na.omit(F1)
+F1$X <- NULL
+```
+
+To further examine the data set, we will take a look at the structure and data types of our variables.
+
+```{r}
+summary(F1)
+```
+
+As we can see, we have both numerical and categorical variables. We can also take a look at the correlation of the numeric variables:
+
+```{r}
+corr <- cor(F1[,c(1, 2, 3, 9, 10, 11, 12, 13)])
+corPlot(corr)
+```
+
+Since each year has its own specific set of race IDs, it is expected that these variables have a correlation of 1. Additionally, variables that are some sort of a performance metric, like `PositionPractice1`, `StartingPosition` and so on are highly correlated. There is negative correlation between most of these variables and `points`, which makes sense given that a lower number in, for example, `StartingPosition` indicates better performance and thus translates into a higher number of points.
+
+
+# Linear Regression
+
+The examination of the topic was started by taking the pre-processed data and checking it's structure as well as its summary. This was done in order to better understand the data set and to formulate a research problem.
+
+```{r}
+rm(list = ls())
+data <- read.csv('./data/F1_preprocessed')
+
+head(data)
+str(data)
+summary(data)
+```
+
+### Cleaning the data is important
+
+The data was cleaned to eliminate a problem by including the entries with NAs or with the finishing position at 24. The finishing position of 24 is the last possible position and in the pre-processing step all of the drivers that did not finish the race were also assigned a finishing position of 24. The elimination of all entries with this observation is necessary to achieve an acceptable performance of the model.
+
+Plotting the data without cleaning it produces the following graph, which one may see is problematic.
+
+```{r}
+baseplot <- ggplot(data, aes(x=StartingPosition, y=FinishingPosition) ) +
+  stat_density_2d(aes(fill = ..level..), geom = "polygon", colour="white") +
+  scale_x_continuous(n.breaks = 24) +
+  scale_y_continuous(n.breaks = 24)
+
+baseplot
+```
+
+```{r}
+data_clean <- na.omit(data)
+data_clean <- data_clean[which(data_clean$FinishingPosition != 24),]
+```
+
+One can also check the correlation coefficients between all available positions on the cleaned data
+
+```{r}
+cor(data_clean[, 10:13])
+```
+
+### Single Linear Regression models
+After cleaning, plotting the same data gives a much clearer picture of the relation of the finishing position to the starting position.
+
+```{r}
+baseplot <- ggplot(data_clean, aes(x=StartingPosition, y=FinishingPosition) ) +
+  stat_density_2d(aes(fill = ..level..), geom = "polygon", colour="white") +
+  scale_x_continuous(n.breaks = 24) +
+  scale_y_continuous(n.breaks = 24)
+
+baseplot
+```
+
+From the correlation matrix and the density scatter plot above one may deduce a linear relationship between the finishing position and the starting position. The next plot includes the linear regression line on the plot.
+
+```{r}
+fitPos <- lm(FinishingPosition ~ StartingPosition, data = data_clean)
+coeff <- coefficients(fitPos)
+baseplot + geom_smooth(method = "lm", se = FALSE, colour="red")
+
+coeff
+```
+
+To comment on the results of this regression, we can notice a very strong trend. There is a very high density clustering around the first few starting and finishing position. With further starting positions, the density of points decreases. This could imply that the drivers that get a good starting position have enough of an advantage to pretty surely secure a good finishing position, while it also matters less with worse starting positions.
+
+Next, we also plot the regression of the two practice positions to the finishing position. While these observations are independent from the normal starting position, they show a high linear correlation, which was found to be interesting.
+
+```{r}
+baseplotTrain1 <- ggplot(data_clean, aes(x=PositionPractice1, y=FinishingPosition) ) +
+  stat_density_2d(aes(fill = ..level..), geom = "polygon", colour="white") +
+  scale_x_continuous(n.breaks = 25) +
+  scale_y_continuous(n.breaks = 25)
+fitPosTrain1 <- lm(FinishingPosition ~ PositionPractice1, data = data_clean)
+coeffTrain1 <- coefficients(fitPosTrain1)
+baseplotTrain1 + geom_smooth(method = "lm", se = FALSE, colour="red")
+
+coeffTrain1
+```
+
+```{r}
+baseplotTrain2 <- ggplot(data_clean, aes(x=PositionPractice2, y=FinishingPosition) ) +
+  stat_density_2d(aes(fill = ..level..), geom = "polygon", colour="white") +
+  scale_x_continuous(n.breaks = 25) +
+  scale_y_continuous(n.breaks = 25)
+fitPosTrain2 <- lm(FinishingPosition ~ PositionPractice2, data = data_clean)
+coeffTrain2 <- coefficients(fitPosTrain2)
+baseplotTrain2 + geom_smooth(method = "lm", se = FALSE, colour="red")
+
+coeffTrain2
+```
+
+### Multiple Linear Regression models
+
+Next, a multiple linear regression was created with the two practice starting positions and the normal starting position. The R\^2 of this regression was slightly better than the one with just the starting position.
+
+```{r}
+summary(fitPos)
+
+
+fitAll <- lm(FinishingPosition ~ StartingPosition + PositionPractice1 + PositionPractice2, data = data_clean)
+
+fitAll
+summary(fitAll)
+
+#the R-squared is insignificantly higher than with the model with just the Starting position
+```
+
+Next, a step fit was conducted and it concluded that all using all three starting positions produces the lowest possible AIC.
+
+```{r}
+fitStep <- step(fitAll, direction = "both")
+```
+
+As the final step, the out-of-sample performance was checked among our regression models. The sample was split into 90% training data and 10% test data.
+
+```{r}
+n <- nrow(data_clean)
+n1 <- floor(n*0.9) # number of obs in train set
+set.seed(1234) ## for reproducibility
+id_train <- sample(1:n, n1)
+train_dat <- data_clean[id_train, ]
+test_dat  <- data_clean[-id_train, ]
+```
+
+```{r}
+fitPos <- lm(FinishingPosition ~ StartingPosition, data = train_dat)
+fitAll <- lm(FinishingPosition ~ StartingPosition + PositionPractice1 + 
+               PositionPractice2, data = train_dat)
+
+y_hat_Pos <- predict(fitPos, newdata = test_dat) # predictions
+
+y_hat_All <- predict(fitAll, newdata = test_dat) # predictions
+```
+
+```{r}
+sqrt(c(mean((y_hat_Pos - test_dat$FinishingPosition)^2), 
+       mean((y_hat_All - test_dat$FinishingPosition)^2)))
+```
+
+The MSE of the model with the three starting positions was lower as well. This should mean that the multiple linear regression model is better at explaining the the finishing position.
+
+
+
+
+# Log regression
+
+In the next step, we are interested whether we can predict the probability of a driver ending up on the podium. Thus, we create a binary variable `podium` which has a value of 1 if the driver ended up in the positions 1-3, and 0 if otherwise.
+
+```{r}
+rm(list = ls())
+F1 <- read.csv("./data/F1_preprocessed")
+F1 <- na.omit(F1)
+F1$X <- NULL
+F1$podium <- ifelse(F1$FinishingPosition >= 1 & 
+                      F1$FinishingPosition <= 3, 1, 0)
+```
+
+### Single variable models
+
+Using this variable, we can perform logistic regression. First, we took a look at all the single explanatory variable models, which all use the highly correlated numeric columns.
+
+```{r}
+# Probability of ending up on podium based on PositionPractice1
+logit_pp1 <- glm(podium ~ PositionPractice1, 
+                 family = binomial, data = F1)
+summary(logit_pp1)
+
+# Based on PositionPractice2
+logit_pp2 <- glm(podium ~ PositionPractice2, 
+                 family = binomial, data = F1)
+summary(logit_pp2)
+
+# Based on StartingPosition
+logit_sp <- glm(podium ~ StartingPosition, 
+                family = binomial, data = F1)
+summary(logit_sp)
+```
+
+The model using `StartingPosition` performed the best out of these three models. (We determined this by taking a look at the AIC, and seeing that it is by far the lowest on the aforementioned model. Although it is important to mention that our model has still room to improve, given that 4466.3 is still considered a high value for AIC.) We can see how our logistic regression looks on a plot:
+
+```{r}
+plot(podium ~ StartingPosition, data = F1)
+r_curve <- function(x) exp(logit_sp$coefficients%*%c(1,x))/
+  (1+exp(logit_sp$coefficients%*%c(1,x)))
+xs <- seq(0, max(F1$StartingPosition), by = 0.1)
+curvexs <- sapply(xs, r_curve)
+lines(xs, curvexs)
+```
+
+By inspecting the model, we can tell that people that *start lower than in the 5th position have a very low probability* of ending up on the podium (P \< 0.2). The first two drivers that start have the best chances, with a probability of around 60% (second) and 70% (first) respectively.
+
+### Multiple variables model
+
+To improve our model we will also create a logistic regression model using all three previously used explanatory variables.
+
+```{r}
+logit_3 <- glm(podium ~ PositionPractice1 + 
+                 PositionPractice2 + StartingPosition,
+               family = binomial, data = F1)
+summary(logit_3)
+```
+
+As we can see, the AIC did not improve a lot despite the added variables. However, based on the feedback we received at the presentation, we tried to include the constructor information in our models to see whether this improves the model.
+
+```{r}
+finished <- F1 %>% group_by(constructorId) %>%
+  summarise(total_fin = sum(FinishingPosition))
+finished$count = F1 %>% count(constructorId)
+finished$avg <- finished$total_fin / finished$count$n
+finished[,2:3] <- NULL
+finished <- finished %>% arrange(avg)
+F1$best <- ifelse(F1$constructorId %in% finished[1:10,]$constructorId, 1, 0)
+
+logit_4 <- glm(podium ~ PositionPractice1 + 
+                 PositionPractice2 + StartingPosition + best,
+               family = binomial, data = F1)
+summary(logit_4)
+```
+
+We created a binary variable `best` which states whether a team is in the top 10 constructors (based on their average finishing positions). Again, this did not result in a large improvement of the AIC.
+
+
+
+
+# Trees and Forests
+
+```{r}
+rm(list = ls())
+set.seed(134)
+
+F1_complete <- read.csv("./data/F1_preprocessed",stringsAsFactors = T)
+F1_complete$X <- NULL
+F1 <- F1_complete[,1:12]
+F1_new <- na.omit(F1)
+F1 <- F1_new[which(F1_new$FinishingPosition != 24),]# Remove points because of high correlation to Finishing 
+```
+
+Describe the tree
+```{r}
+tree <- rpart(FinishingPosition~., data = F1)
+plot(as.party(tree))
+# We see that points is the biggest inpacting factor on starting postions
+# No suprise as you get a lot of points if you finish in a good postion 
+```
+
+Full tree with zoom and choosing correct number of splits
+```{r}
+
+full_tree <- rpart(FinishingPosition~., data = F1, control = list(cp = 0))
+rpart::plotcp(full_tree) # Super hard to read anything
+
+full_tree_zoom <- rpart(FinishingPosition~., data = F1, control = list(cp = 0.005)) # Zoom in
+rpart::plotcp(full_tree_zoom)
+printcp(full_tree_zoom)
+
+```
+
+prued tree
+```{r}
+pruned_tree <- prune(full_tree, cp = full_tree$cptable[5, "CP"])
+
+plot(as.party(pruned_tree))
+
+```
+
+predicting with tree
+```{r}
+yhat <- predict(pruned_tree,data = F1)
+hist(yhat, main = "Title",breaks = 24) # Not exactly sure what this means, but it kinda makes sens that we have more observations on the higher end because of people not finishing
+```
+
+more prediction
+```{r}
+raceId <- 1102
+year <- 2024
+round <- 1 
+country <- "bahrain"
+officialName <- "Formula 1 Gulf Air Bahrain Grand Prix 2024"
+driverId <- "charles-leclerc"
+constructorId <- "mclaren"
+engineManufacturerId <- "honda-rbpt"
+PositionPractice1 <- 1
+PositionPractice2 <- 4
+StartingPosition <- 2
+
+colnames(F1)
+#str(F1)
+Predictor_df <- data.frame(raceId, year, round, country, officialName, driverId, constructorId, engineManufacturerId, PositionPractice1, PositionPractice2, StartingPosition)
+
+predict(pruned_tree, Predictor_df)
+
+```
+
+
+RANDOM FOREST
+```{r}
+set.seed(345)
+#F1[is.na(F1$StartingPosition),]$StartingPosition <- 0  
+rf <- ranger(FinishingPosition ~. , data = F1, probability = FALSE, importance = "permutation")
+
+print(rf)
+plot(as.table(importance(rf)), ylab="Importance", main = "Variance Importance at Trees = 500", las = 2, cex.axis = 0.5)
+```
+
+From the importance plot we see that, surprisingly, round, country and driverId are the least important ones. The positions in the Practices and Qualifying are the most important, as they influence the starting position and winning from the front is generally easier.
+
+### Partial dependency plot
+
+We also created a partial dependency plot for the most important variable, startingPosition, and see that we have small jumps at around 5, 7 and 13/14, while seeing a constant upwards trend. The variance of the predicted finishing position is much higher for higher starting positions while the left side of the plot stays rather compact. 
+```{r}
+grid <- seq(1,24,length.out = 24)
+nd <- F1[sample.int(nrow(F1),1000),]
+prs <- lapply(grid, \(val) {
+  nd$StartingPosition <- val
+  predict(rf, data = nd, type = "response")$predictions
+})
+
+matplot(grid, t(do.call("cbind",prs)), type = "l",lty = 1, col = rgb(.1,.1,.1,.1))
+```
+
+Here we can see that the higher the StartingPosition the more important it is in splitting the trees, while for the first 10 Starting positions it is not too important.
+
+### Predicting Finishing Position for 2 drivers
+
+We use Max Verstappen and Logan Sargeant for this example and also switch their cars to see the influence the model predicts. The race will be Bahrain 2024. We see that the prediction differs quite a bit for the changed setups. Max is predicted to finish ~2nd in his car and 4th in the Williams. Similarly, Logan is expected to finish in 17th in his car but in 14th/15th driving the RedBull. So even though the importance plot didn't give the constructorID and enginemaufacturerID too much weight, we do see quite the difference in predicted performance.
+
+```{r}
+set.seed(345)
+
+raceId <- 1102
+year <- 2024
+round <- 1 
+country <- "bahrain"
+officialName <- "Formula 1 Gulf Air Bahrain Grand Prix 2024"
+driverId <- "max-verstappen"
+constructorId <- "red-bull"
+engineManufacturerId <- "honda-rbpt"
+PositionPractice1 <- 6
+PositionPractice2 <- 6
+StartingPosition <- 1
+
+nd <- data.frame(raceId, year, round,country,officialName, driverId, constructorId, engineManufacturerId, PositionPractice1, PositionPractice2, StartingPosition)
+
+predict(rf, data = nd, type = "response")$predictions
+
+raceId <- 1102
+year <- 2024
+round <- 1 
+country <- "bahrain"
+officialName <- "Formula 1 Gulf Air Bahrain Grand Prix 2024"
+driverId <- "logan-sargeant"
+constructorId <- "red-bull"
+engineManufacturerId <- "honda-rbpt"
+PositionPractice1 <- 16
+PositionPractice2 <- 13
+StartingPosition <- 18
+
+nd <- data.frame(raceId, year, round,country,officialName, driverId, constructorId, engineManufacturerId, PositionPractice1, PositionPractice2, StartingPosition)
+
+predict(rf, data = nd, type = "response")$predictions
+
+raceId <- 1102
+year <- 2024
+round <- 1 
+country <- "bahrain"
+officialName <- "Formula 1 Gulf Air Bahrain Grand Prix 2024"
+driverId <- "max-verstappen"
+constructorId <- "williams"
+engineManufacturerId <- "mercedes"
+PositionPractice1 <- 6
+PositionPractice2 <- 6
+StartingPosition <- 1
+
+nd <- data.frame(raceId, year, round,country,officialName, driverId, constructorId, engineManufacturerId, PositionPractice1, PositionPractice2, StartingPosition)
+
+predict(rf, data = nd, type = "response")$predictions
+
+raceId <- 1102
+year <- 2024
+round <- 1 
+country <- "bahrain"
+officialName <- "Formula 1 Gulf Air Bahrain Grand Prix 2024"
+driverId <- "logan-sargeant"
+constructorId <- "williams"
+engineManufacturerId <- "mercedes"
+PositionPractice1 <- 16
+PositionPractice2 <- 13
+StartingPosition <- 18
+
+nd <- data.frame(raceId, year, round,country,officialName, driverId, constructorId, engineManufacturerId, PositionPractice1, PositionPractice2, StartingPosition)
+
+predict(rf,data = nd, type = "response")$predictions
+```
+
+### How good will Lewis Hamilton be when Racing for Ferrari next Season?
+
+```{r}
+#set.seed(345)
+
+raceId <- c(seq(1125, 1124+24))
+year <- c(rep(2025, 24))
+round <- c(seq(1, 24))
+
+
+country <- c("australia", "china", "japan", "bahrain", "saudi-arabia", "miami", "emilia-romagna
+", "monaco", "spain", "canada", "austria", "great-britain", "belgium", "hungary", "netherlands", "italy", "azerbaijan", "singapore", "united-states", "mexico", "brazil", "las-vegas", "qatar", "abu-dhabi")
+
+
+officialName <- c("Formula 1 Rolex Australian Grand Prix 2024", "Formula 1 2025 Heineken Chinese Grand Prix", "Formula 1 Lenovo Japanese Grand Prix 2025", "Formula 1 Gulf Air Bahrain Grand Prix 2025", "Formula 1 stc Saudi Arabian Grand Prix 2025", "	
+Formula 1 Crypto.com Miami Grand Prix 2025", "Formula 1 Rolex Gran Premio dell'Emilia Romagna 2025", "Formula 1 Grand Prix de Monaco 2025", "Formula 1 Pirelli Gran Premio de España 2025", "Formula 1 Pirelli Grand Prix du Canada 2025", "Formula 1 Grosser Preis von Österreich 2025", "Formula 1 Lenovo British Grand Prix 2025", "	
+Formula 1 Rolex Belgian Grand Prix 2025", "Formula 1 Aramco Magyar Nagydíj 2025", "Formula 1 Heineken Dutch Grand Prix 2025", "Formula 1 Pirelli Gran Premio d'Italia 2025", "Formula 1 Azerbaijan Grand Prix 2025", "	
+Formula 1 Singapore Airlines Singapore Grand Prix 2025", "Formula 1 Aramco United States Grand Prix 2025", "ormula 1 Heineken Gran Premio de la Ciudad de México 2025", "Formula 1 Heineken Grande Prêmio de São Paulo 2025", "Formula 1 Heineken Silver Las Vegas Grand Prix 2025", "Formula 1 Ooredoo Qatar Grand Prix 2021", "Formula 1 Etihad Airways Abu Dhabi Grand Prix 2021")
+                  
+                  
+driverId <- c(rep("lewis-hamilton", 24))
+constructorId <- c(rep("ferrari", 24))
+engineManufacturerId <- c(rep("ferrari", 24))
+
+# We can assume that for the starting postion that he will alawys be in the top 10 
+# For the practice the positon can be in the full range
+
+PositionPractice1 <- c(sample(1:10, 24, replace = TRUE))
+PositionPractice2 <- c(sample(1:8, 24, replace = TRUE))
+StartingPosition <- c(sample(1:6, 24, replace = TRUE))
+
+nd_fer <- data.frame(raceId, year, round,country,officialName, driverId, constructorId, engineManufacturerId, PositionPractice1, PositionPractice2, StartingPosition)
+
+
+places_fer <- predict(rf, data = nd_fer, type = "response")$predictions
+places_fer <- round(places_fer, 0)
+
+
+hist(round(places_fer, 0), main = "Distribution of Finishing Positions")
+
+
+getF1Points <- function(positions) {
+  # Define the points system for positions 1 through 10
+  points_map <- c(25, 18, 15, 12, 10, 8, 6, 4, 2, 1)
+  
+  # Map the finishing positions to the points, positions beyond 10 get 0 points
+  points <- sapply(positions, function(x) {
+    if (x <= 10) points_map[x] else 0
+  })
+  
+  return(points)
+}
+
+points_fer <- getF1Points(places_fer)
+
+plot(cumsum(points_fer), type = "l", xlab= "Race Nr", ylab = "Points Scored", main = "Points scored by Lewis Hamiltion in 2025")
+```
+
+
+
+
+# Clustering
+
+As seen with the recent change of Lewis Hamilton from Mercedes to Ferrari, the team a driver belongs to, especially when he's good causes a huge commotion. But why is this the case? In the following few plots we take a look at teams and drivers in winning positions how team-competition changed over the years and then come to the main star of this section: clustering.
+
+### Preliminaries
+
+Looking at the first plot we see constructors plotted against finishing position in boxplots, which shows us that many teams never managed to earn a winning position with some not even managing a position in the top 5. Is there a pattern with teams staying on top and worse performing teams having a hard time catching up?
+Before we look into that in more detail, let's take a look at 2 more plots.
+```{r}
+plot(F1$constructorId,F1$FinishingPosition)
+```
+
+Next we have all the drivers plotted against finishing position and again see only few reaching first place. This makes somewhat sense as now and in the past there has most often been a (very) dominant driver. Just looking at the last years we pretty much only see Verstappen and Hamilton on top. 
+
+Interestingly, in the next plot we see that the number of engine manufacturers decreased greatly over the years. Right now there are only 4 different ones for 10 teams, so more than 2 teams on average use the same engine. The longest "lines" here represent Ferrari, Mercedes and Renault.
+```{r}
+plot(F1$driverId,F1$FinishingPosition)
+plot(F1$raceId,F1$engineManufacturerId)
+```
+### Data processing and dividing our teams
+
+Now let's focus on our question from earlier: Do good teams stay on top?
+We create a subset of the dataframe F1_complete which groups the data by constructor and year and sums their points. We also only use 2010 to 2023 as the scoring system changed in 2010 and 2024 has too few races.
+
+In the plot we see most of the points at the bottom, as expected. As we found out in the previous plots, many teams never made it to the top 5 or top10 and thus don't earn points in most of the races. If then the best drivers stay with their teams and remain dominant they accrue more and more points for them.
+
+```{r}
+pts_const_y <- F1_complete %>%
+                  group_by(constructorId,year) %>%
+                  summarize(sum(points))
+colnames(pts_const_y) <- c("constructorId","year","points")
+
+pts_const_y <- pts_const_y[which(pts_const_y$year >= 2010 & pts_const_y$year < 2024 ),]
+ 
+
+plot(pts_const_y$year,pts_const_y$points)
+```
+
+We cluster the data into 4 to get "top teams", "great", "alright" and "bottom teams". This results in the same plot seen in our presentation and the mentioned barriers at around 470 Pts, 270 Pts and 100 Pts. Especially between the turquoise and green clusters we see a distance that clearly separates them. But also between red and turquoise has, with the exception of a few years, another step up. 
+So even between the best there is a clear gap to the best of the best. Our theory with dominant drivers can be seen here as well. RedBull is on top in 2010-2013 where Sebastian Vettel dominated and won the Championship, after that Hamilton could not be caught and Mercedes scored highest during 2014-2020/21. Now Verstappen is leaving the others in the dust, pushing RedBull back to the top.
+
+```{r}
+set.seed(1)
+kms <- kmeans(pts_const_y[,2:3], centers = 4, nstart = 10)
+plot(pts_const_y$year,pts_const_y$points, col = kms$cluster+1,pch = 18, cex = 4)
+ 
+text(pts_const_y$year,pts_const_y$points, labels = pts_const_y$constructorId, adj = c(-0.3,1),cex = 0.7)
+```
+### Quantifying the Clustering result
+
+To further quantify the dominance of these teams in the first 2 clusters we further summarize the data with dplyr to get a dataframe clusters_overview. The cluster numbers correspond to the analysis in the following way: 1 - "top teams", 2 - "alright", 3 - "bottom teams", 4 - "great". 
+In teh first we see that only 4 teams ever reached the top cluster, with them being Mercedes (8 times), RedBull (6 times), Ferrari (4) and McLaren (1). 
+Summarizing the count per cluster we find that not only were there only 4 teams in the best, but also only 5 teams in the next cluster. Deducting from the graph above, and checking with the df, it included the same teams plus Lotus F1. 
+The bottom 2 clusters have both a more expected number of teams in them. We have to kepp in mind, though, that teams sometimes switch names, and thus the same team can be counted twice in this analysis. 
+
+```{r}
+pts_const_y$cluster <- kms$cluster
+ 
+clusters_overview <- pts_const_y %>%
+                        group_by(cluster,constructorId) %>%
+                        summarise(Count = n())
+
+clusters_overview
+clusters_overview %>%
+  group_by(cluster) %>%
+  summarise(numTeams = n())
+```
+
+
+
+# Further topics and conclusion
+
+To further the research of this project there are several paths we can take. First, there is always the possibility to examine the source data further. For this we can look for additional significant or interesting variables we haven't thought of yet, or incorporate more observations. A step that could be taken would be normalizing the points scored to make a consistent scoring system over the last 70+ years. 
+As seen in many of the data preparation steps, and the preprocessing report, finding better substitutes for missing values would increase the usable data quite a lot and thus would probably allow for better fitting models.
+
+Similar to this we can look at more aspects of Formula 1, the first thing that came to mind here were the Races and their locations. A study of their geographical distributions and a change therein. Finding out if the addition of a race in the home-country of a driver has an impact on their performance. 
+
+As seen in the clustering the number of manufacturers and drivers changed a lot, this could also be explored further. The same holds true for rule changes, which are quite frequent and make it harder to compare time periods of F1 with each other.
+
+Lastly, backtesting and benchmarking of our different models could be an easy method to increase their performance without changing the underlying inputs. There are more sophisticated parameter tuning methods which we could use.
+A head-to-head of drivers could also be interesting, especially from a business perspective (or a sports betting one :) )
+
+
+To conclude, we were positively surprised by the measures of fit achieved by our models and by the factors that play the biggest role for them in determining the winner. Given the inherent randomness/uncertainty in this sport, achieving such "accurate" models was great. 
+
+
+
+
+
+
+
+
+
+
+
