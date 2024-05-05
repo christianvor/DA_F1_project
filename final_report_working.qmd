@@ -1,15 +1,29 @@
 ---
 title: "Formula 1 DA Project"
-author: "Group 2; Moritz Baldauf, Anna Fábián, Bolormaa Munkh-Erdene, Wiktor Uszko, Christian Vorhauser"
-format: html-notebook
-editor: visual
+subtitle: "Group 2"
+author: "Moritz Baldauf, Anna Fábián, Bolormaa Munkh-Erdene, Wiktor Uszko, Christian Vorhauser"
+#format: html-notebook
+#editor: visual
+title-block-banner: "#990000"
+title-block-banner-color: "white"
+format: 
+  html-notebook:
+    embed-resources: true
+    smooth-scroll: true
+    theme: cosmo
+    fontcolor: black
+    toc: true
+    toc-location: left
+    toc-title: Table of Contents
+    toc-depth: 3
+css: style.css
 ---
 
 # Introduction
 
 In the following we will walk you through our project and the different methods we used for creating and interpreting our models. The data used is the pre-processed version with ~9500 observations which results from multiple CSV files which we combined in the pre-processing file in the data folder. There exists a second report on this step, as the joining and combining of the data does not fit particularly well with the rest.
 
-For an overview of the whole project with all it's raw files, individual R files and more you may refer to the following github: https://github.com/christianvor/DA_F1_project
+For an overview of the whole project with all it's raw files, individual R files and more you may refer to the following github: <https://github.com/christianvor/DA_F1_project>
 
 We start off by explaining which datapoints exactly we are taking a look at and why those are of interest to us. Next we go through the different models we employed in the following order: Lin Reg, Logit, Trees and Forests, Clustering. After that we conclude our research and name future improvements and further topics that can be looked into.
 

@@ -1,11 +1,28 @@
 ---
-title: "DA Project Pre-Processing"
-author: "Group 2"
-format: html-notebook
-editor: visual
+title: "F1 DA Project Pre-processing"
+subtitle: "Group 2"
+author: "Moritz Baldauf, Anna Fábián, Bolormaa Munkh-Erdene, Wiktor Uszko, Christian Vorhauser"
+#format: html-notebook
+#editor: visual
+title-block-banner: "#990000"
+title-block-banner-color: "white"
+format: 
+  html-notebook:
+    embed-resources: true
+    smooth-scroll: true
+    theme: cosmo
+    fontcolor: black
+    toc: true
+    toc-location: left
+    toc-title: Table of Contents
+    toc-depth: 3
+css: style.css
 ---
 
 ```{r}
+#| warning: false
+#| message: false
+#| error: false
 library(readr)
 library(dplyr)
 ```
@@ -143,6 +160,7 @@ raceId, year, round, Country, name,  driverId, constructorId, engineManufactureI
 This was achieved my inner joining the data frames by raceID and also driverID. After this process we are left with the F1_complete data frame including 8944 observations of 13 variables. We write this data to a csv called "F1_preprocessed" and use it for all the analysis. For the actual models there will be further changes to the data, which will be explained there.
 
 ```{r}
+#| echo: false
 F1_positions <- races_2000[, 1:7]
 F1_positions$time <- NULL
 F1_positions$date <- NULL
@@ -179,6 +197,7 @@ write.csv(F1_complete, file = "F1_preprocessed")
 
 Using a teams dataframe as well was an earlier idea which has been scrapped later. Main reason being that there is no raceID and joining them would be very tedious with calculating the points after each race, adding a myriad of rows in the process.
 ```{r}
+#| eval: false
 # Seperate DF NO RACE ID
 points_team <- read_csv("f1db-csv-2024.3.0/f1db-seasons-constructor-standings.csv")
 
