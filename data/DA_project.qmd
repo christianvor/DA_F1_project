@@ -1,7 +1,7 @@
 ---
-title: "DA Project"
+title: "DA Project Pre-Processing"
 author: "Group 2"
-format: html
+format: html-notebook
 editor: visual
 ---
 
@@ -12,16 +12,23 @@ library(dplyr)
 
 ## Wrangling the Data
 
+Loading in the data for all the races that happened and subsetting them to include only the year 2000 and onward. This race data has information on the circuit, name etc, NOT race results! The same is done for Practice races, where we also remove many variables not useful to us. They mostly contain intra race results and times.
+The time difference for the 1st position is also set to 0, thus eliminating quite a few NAs.
+
+We then join the 2 Practice sessions by RaceID to get a data frame including all the practice data. 
+
+The next step is reading in the qualifying and actual race result data. Again we delete multiple columns regarding time and position during the race, tyre info, penalties.
+To finish those data up, we rename some columns for consistency and replace some NAs with 0 for easier handling. 
+
+This concludes the first step.
 ```{r}
-
-
-races_2000 <- read_csv("f1db-csv-2024.3.0/f1db-races.csv")
+races_2000 <- read_csv("f1db-races.csv")
 races_2000 <- races_2000[which(races_2000$year >= 2000), ]
 
 #head(races)
 #str(races)
 
-practice_1_2000<- read_csv("f1db-csv-2024.3.0/f1db-races-free-practice-1-results.csv")
+practice_1_2000<- read_csv("f1db-races-free-practice-1-results.csv")
 practice_1_2000 <- practice_1_2000[which(practice_1_2000$year >= 2000), ]
 
 practice_1_2000$positionDisplayOrder <- NULL
@@ -47,7 +54,7 @@ practice_1_2000$intervalMillis[is.na(practice_1_2000$intervalMillis)] <- 0
 new_DF <- practice_1_2000[is.na(practice_1_2000$timeMillis),]
 
 
-practice_2_2000<- read_csv("f1db-csv-2024.3.0/f1db-races-free-practice-2-results.csv")
+practice_2_2000<- read_csv("f1db-races-free-practice-2-results.csv")
 practice_2_2000 <- practice_2_2000[which(practice_2_2000$year >= 2000), ]
 
 practice_2_2000$positionDisplayOrder <- NULL
@@ -85,13 +92,13 @@ str(practice_full)
 #practice_3<- read_csv("f1db-csv-2024.3.0/f1db-races-free-practice-3-results.csv")
 #practice_3_2000 <- practice_3[which(practice_3$year >= 2000), ]
 
-qualifying_res <- read_csv("f1db-csv-2024.3.0/f1db-races-qualifying-results.csv")
+qualifying_res <- read_csv("f1db-races-qualifying-results.csv")
 qualifying_res <- qualifying_res[which(qualifying_res$year >= 2000), ]
 #View(qualifying_res)
 tail(qualifying_res)
 
 
-race_results <- read_csv("f1db-csv-2024.3.0/f1db-races-race-results.csv")
+race_results <- read_csv("f1db-races-race-results.csv")
 race_results <- race_results[which(race_results$year >= 2000), ]
 head(race_results)
 tail(race_results)
@@ -126,7 +133,14 @@ rm(qualifying_res)
 
 ## Creating the final DF
 
-# Cols: raceId, year, round, Location, Country, driverId, constructorId, engineManufactureId, Postion_Practice1, Postion_Practice2, Postion_Quali, Positon_Race, PointsRace
+Now we get to creating the final pre-processed dataframe, which will be used in the actual analysis part of the project.
+
+Again we first subset and delete the dataframes from the first step more so it will be easier to join them and we would remove them anyways.
+
+In the final df we want to have the following variables only:
+raceId, year, round, Country, name,  driverId, constructorId, engineManufactureId, Postion_Practice1, Postion_Practice2, Postion_Quali, Positon_Race, PointsRace
+
+This was achieved my inner joining the data frames by raceID and also driverID. After this process we are left with the F1_complete data frame including 8944 observations of 13 variables. We write this data to a csv called "F1_preprocessed" and use it for all the analysis. For the actual models there will be further changes to the data, which will be explained there.
 
 ```{r}
 F1_positions <- races_2000[, 1:7]
@@ -163,6 +177,7 @@ write.csv(F1_complete, file = "F1_preprocessed")
 
 ```
 
+Using a teams dataframe as well was an earlier idea which has been scrapped later. Main reason being that there is no raceID and joining them would be very tedious with calculating the points after each race, adding a myriad of rows in the process.
 ```{r}
 # Seperate DF NO RACE ID
 points_team <- read_csv("f1db-csv-2024.3.0/f1db-seasons-constructor-standings.csv")

@@ -7,6 +7,14 @@ editor: visual
 
 # Introduction
 
+In the following we will walk you through our project and the different methods we used for creating and interpreting our models. The data used is the pre-processed version with ~9500 observations which results from multiple CSV files which we combined in the pre-processing file in the data folder. There exists a second report on this step, as the joining and combining of the data does not fit particularly well with the rest.
+
+For an overview of the whole project with all it's raw files, individual R files and more you may refer to the following github: https://github.com/christianvor/DA_F1_project
+
+We start off by explaining which datapoints exactly we are taking a look at and why those are of interest to us. Next we go through the different models we employed in the following order: Lin Reg, Logit, Trees and Forests, Clustering. After that we conclude our research and name future improvements and further topics that can be looked into.
+
+
+The following packages have been used in this report:
 ```{r}
 #| warning: false
 #| message: false
