@@ -318,7 +318,7 @@ F1_new <- na.omit(F1) # Rm Na
 F1 <- F1_new[which(F1_new$FinishingPosition != 24),]# Remove points because of high correlation to Finishing 
 ```
 
-For the regression tree we want to analyze the biggest inpacting factors on the Finishing position. For that we select the races taking place after 2000, as due to rule changes older races are hard to compare. Also we remove the Finishing Position 24, as these are mostly drivers that didn't finish the race and thus cause a high correlation. It is also importatn to note, that no points are included in the dataset, as Points and Finishing positions are highly correlated (Finishin well = Getting lots of Points).
+We want to analyze the regression tree's most impacting factors on the Finishing position. We select the races after 2000, as older races are hard to compare due to rule changes. Also, we removed the Finishing Position 24, as most drivers didn't finish the race, thus causing a high correlation. It is also important to note that no points are included in the dataset, as Points and Finishing positions are highly correlated (finishing well = Getting lots of Points).
 
 
 #### Unpruned tree
@@ -326,9 +326,9 @@ For the regression tree we want to analyze the biggest inpacting factors on the 
 tree <- rpart(FinishingPosition~., data = F1)
 plot(as.party(tree))
 ```
-We create an unpruned tree on all the Variables of the Dataframe, and predict the finishing postion. It can be seen that the tree is very messy, but a few key points can be identivied. 1. The Tree splits first into top 10 starting postion and bottom 10 starting postions. For the Top the startes he then splits again for starting postions bevor considering the the Race taking place. For the bottom 10 startes the contstructor ID is the next splitting point. Followed by splitting for driver or Race name. 
+We create an unpruned tree on all the Variables of the data frame and predict the finishing position. The tree is very messy, but a few key points can be identified. 1. The Tree splits first into the top 10 starting positions and the bottom ten starting positions. For the top, it splits again for starting positions before considering the Race taking place. The constructor ID is the next splitting point for the bottom ten states, followed by splitting for the driver or Race name. 
 
-From this simple tree we can concluded that starting postions as well as the Race have an high impact into the finishing postion. When comparing this to the things we know from the actual races, this make sense as starting in a good postion has an high impact on finishing well, especally on tracks where it is hard to overtake. 
+From this simple tree, starting positions and the race name significantly impact finishing positions. This makes sense when comparing this to what we know from the actual races, as beginning in a good position significantly impacts finishing well, especially on tracks that are hard to overtake. 
 
 ### Finding the best number of splits for the tree
 ```{r}
@@ -337,7 +337,7 @@ full_tree <- rpart(FinishingPosition~., data = F1, control = list(cp = 0))
 rpart::plotcp(full_tree) # Super hard to read anything
 
 ```
-We plot the Error of the tree compared to its number of splits. Because of the big data set with multipl variables the plot is very hard to read. In order to make it more readible we zoom in. 
+We plot the tree's error compared to its number of splits. The plot is tough to read because it contains a big data set with multiple variables. To make it more readable, we zoom in. 
 
 ```{r}
 
@@ -347,22 +347,18 @@ printcp(full_tree_zoom)
 
 ```
 
-When focusing on a tree size between 1 - 15 we can identify a sice of 5 as the best pick for reducing the error as well as keeping the tree simple. 
+When focusing on a tree size between 1 and 15, we can identify a slice of 5 as the best choice for reducing the error and keeping the tree simple. 
 
 ### Pruned tree
 ```{r}
 pruned_tree <- prune(full_tree, cp = full_tree$cptable[5, "CP"])
 plot(as.party(pruned_tree))
 ```
-We prune the tree to a size of 5. Now it is easier to understand the final splits of the tree. For   
+We prune the tree to a size of 5. Now, it is easier to understand the final splits of the tree. For the top 10 drivers, we see a second split for the top 5 drivers and the other top 10 drivers. We see a clear advantage for starting in the top 5; the boxplot shows that the mean finishing position is around the 4th place, whereas for a starting position between 5 and 10, the mean finishing position is around the 6th place. For drivers with a starting position>10, the constructor ID splits between good and bad teams. For the good teams, there is another split for drivers, signaling that driver quality is only a decisive factor for good teams. A good driver starting from a place >10 but with a good team has a mean finishing position of 10, whereas a lousy driver starting in the same circumstance will finish around P14. For the rest, the finishing position is around P16.
 
-predicting with tree
-```{r}
-yhat <- predict(pruned_tree,data = F1)
-hist(yhat, main = "Title",breaks = 24) # Not exactly sure what this means, but it kinda makes sens that we have more observations on the higher end because of people not finishing
-```
 
-more prediction
+
+### Makeing predictions with the pruned tree
 ```{r}
 raceId <- 1102
 year <- 2024
@@ -370,10 +366,10 @@ round <- 1
 country <- "bahrain"
 officialName <- "Formula 1 Gulf Air Bahrain Grand Prix 2024"
 driverId <- "charles-leclerc"
-constructorId <- "mclaren"
-engineManufacturerId <- "honda-rbpt"
-PositionPractice1 <- 1
-PositionPractice2 <- 4
+constructorId <- "ferrari"
+engineManufacturerId <- "ferrari"
+PositionPractice1 <- 8
+PositionPractice2 <- 9
 StartingPosition <- 2
 
 colnames(F1)
@@ -383,6 +379,7 @@ Predictor_df <- data.frame(raceId, year, round, country, officialName, driverId,
 predict(pruned_tree, Predictor_df)
 
 ```
+We use our pruned tree to predict how well Charles Leclerc performs on the first race in the season. This is an insample prediction as the race is represented in our Dataset. We can see that our tree predicts an outcome of P3 or P4. When comparing this to the actual race where Leclerc finished P4, the prediction is pretty close. 
 
 
 RANDOM FOREST
