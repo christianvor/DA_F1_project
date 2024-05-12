@@ -16,7 +16,7 @@ format:
     toc-location: left
     toc-title: Table of Contents
     toc-depth: 3
-css: style.css
+css: ../style.css
 ---
 
 ```{r}
