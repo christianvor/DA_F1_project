@@ -312,25 +312,34 @@ rm(list = ls())
 set.seed(134)
 
 F1_complete <- read.csv("./data/F1_preprocessed",stringsAsFactors = T)
-F1_complete$X <- NULL
-F1 <- F1_complete[,1:12]
-F1_new <- na.omit(F1)
+F1_complete$X <- NULL # Rm X because not relevant
+F1 <- F1_complete[,1:12] # Select Races after 2000
+F1_new <- na.omit(F1) # Rm Na 
 F1 <- F1_new[which(F1_new$FinishingPosition != 24),]# Remove points because of high correlation to Finishing 
 ```
 
-Describe the tree
+For the regression tree we want to analyze the biggest inpacting factors on the Finishing position. For that we select the races taking place after 2000, as due to rule changes older races are hard to compare. Also we remove the Finishing Position 24, as these are mostly drivers that didn't finish the race and thus cause a high correlation. It is also importatn to note, that no points are included in the dataset, as Points and Finishing positions are highly correlated (Finishin well = Getting lots of Points).
+
+
+#### Unpruned tree
 ```{r}
 tree <- rpart(FinishingPosition~., data = F1)
 plot(as.party(tree))
-# We see that points is the biggest inpacting factor on starting postions
-# No suprise as you get a lot of points if you finish in a good postion 
 ```
+We create an unpruned tree on all the Variables of the Dataframe, and predict the finishing postion. It can be seen that the tree is very messy, but a few key points can be identivied. 1. The Tree splits first into top 10 starting postion and bottom 10 starting postions. For the Top the startes he then splits again for starting postions bevor considering the the Race taking place. For the bottom 10 startes the contstructor ID is the next splitting point. Followed by splitting for driver or Race name. 
 
-Full tree with zoom and choosing correct number of splits
+From this simple tree we can concluded that starting postions as well as the Race have an high impact into the finishing postion. When comparing this to the things we know from the actual races, this make sense as starting in a good postion has an high impact on finishing well, especally on tracks where it is hard to overtake. 
+
+### Finding the best number of splits for the tree
 ```{r}
 
 full_tree <- rpart(FinishingPosition~., data = F1, control = list(cp = 0))
 rpart::plotcp(full_tree) # Super hard to read anything
+
+```
+We plot the Error of the tree compared to its number of splits. Because of the big data set with multipl variables the plot is very hard to read. In order to make it more readible we zoom in. 
+
+```{r}
 
 full_tree_zoom <- rpart(FinishingPosition~., data = F1, control = list(cp = 0.005)) # Zoom in
 rpart::plotcp(full_tree_zoom)
@@ -338,13 +347,14 @@ printcp(full_tree_zoom)
 
 ```
 
-prued tree
+When focusing on a tree size between 1 - 15 we can identify a sice of 5 as the best pick for reducing the error as well as keeping the tree simple. 
+
+### Pruned tree
 ```{r}
 pruned_tree <- prune(full_tree, cp = full_tree$cptable[5, "CP"])
-
 plot(as.party(pruned_tree))
-
 ```
+We prune the tree to a size of 5. Now it is easier to understand the final splits of the tree. For   
 
 predicting with tree
 ```{r}
